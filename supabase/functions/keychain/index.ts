@@ -40,27 +40,20 @@ serve(async (req) => {
         return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers: corsHeaders });
       }
 
-      // 2. SAVE ENTRY (Fixed with Normalization and Error Logging)
+      // 2. SAVE/UPDATE ENTRY
       if (url.pathname.endsWith("/save")) {
-        if (!body.currentUser || !body.entry.domain) {
-          return new Response("Missing required fields", { status: 400, headers: corsHeaders });
-        }
-
         const { error } = await supabase
           .from('vault_entries')
           .upsert([{ 
             owner: body.currentUser, 
-            domain: body.entry.domain.toLowerCase().trim(), // Normalize domain
+            domain: body.entry.domain.toLowerCase().trim(),
             username: body.entry.username, 
             password: body.entry.password, 
-            category: body.entry.category 
+            category: body.entry.category,
+            updated_at: new Date().toISOString() // Track last update
           }], { onConflict: 'owner,domain' });
 
-        if (error) {
-          console.error("Database Upsert Error:", error.message);
-          throw error;
-        }
-        
+        if (error) throw error;
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
@@ -68,7 +61,7 @@ serve(async (req) => {
       if (url.pathname.endsWith("/list")) {
         const { data, error } = await supabase
           .from('vault_entries')
-          .select('*')
+          .select('*, created_at, updated_at')
           .eq('owner', body.currentUser)
           .order('domain', { ascending: true });
 
@@ -113,6 +106,29 @@ serve(async (req) => {
         }));
 
         return new Response(JSON.stringify(processedUsers), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // 7. ADMIN: DELETE USER
+      if (url.pathname.endsWith("/admin-delete-user")) {
+        const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
+        if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
+        
+        const { error } = await supabase.from('vault_users').delete().eq('username', body.targetUser);
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 8. REGISTER USER (Admin Only)
+      if (url.pathname.endsWith("/create-account")) {
+        const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
+        if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
+
+        const { error } = await supabase
+          .from('vault_users')
+          .insert([{ username: body.newUsername, password: body.newPassword, role: 'user' }]);
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
     } catch (err) {
