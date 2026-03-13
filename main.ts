@@ -56,6 +56,7 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify(items));
   }
 
+  // --- THE UI ---
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -83,7 +84,7 @@ Deno.serve(async (req: Request) => {
     </head>
     <body class="bg-brand-bg text-gray-200 min-h-screen flex flex-col items-center p-6 selection:bg-brand-primary/30">
 
-      <div id="auth-container" class="w-full max-w-md mt-20">
+      <div id="auth-container" class="w-full max-w-md mt-20 transition-all duration-500">
         <div class="text-center mb-8">
           <h1 class="text-3xl font-bold text-white tracking-tight">Password Keychain</h1>
           <p class="text-brand-accent text-sm font-medium uppercase tracking-widest mt-1">By Kinetic Logic Labs</p>
@@ -100,7 +101,6 @@ Deno.serve(async (req: Request) => {
           </div>
           
           <button id="login-btn" onclick="handleLogin()" class="w-full bg-brand-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition duration-200">Access Vault</button>
-          
           <p id="login-error" class="text-red-500 text-sm font-medium text-center mt-4 transition-opacity duration-300 opacity-0 pointer-events-none">Invalid Username or Password</p>
         </div>
       </div>
@@ -117,10 +117,6 @@ Deno.serve(async (req: Request) => {
           </div>
         </div>
 
-        <div class="mb-6">
-          <input id="vault-search" oninput="filterVault()" placeholder="Search domain or username..." class="w-full bg-brand-card border border-brand-border p-3 rounded-xl outline-none focus:border-brand-primary/50 text-sm transition text-white">
-        </div>
-
         <div id="settings-panel" class="hidden bg-brand-card border border-brand-primary/30 p-6 rounded-2xl mb-8">
           <h3 class="text-white font-bold mb-4">Account Settings</h3>
           <div class="grid grid-cols-2 gap-3 mb-4">
@@ -128,6 +124,10 @@ Deno.serve(async (req: Request) => {
             <input id="new-password" type="password" placeholder="New Password" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white">
           </div>
           <button onclick="updateAccount()" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg text-sm font-bold transition">Update & Re-login</button>
+        </div>
+
+        <div class="mb-6">
+          <input id="vault-search" oninput="filterVault()" placeholder="Search domain or username..." class="w-full bg-brand-card border border-brand-border p-3 rounded-xl outline-none focus:border-brand-primary/50 text-sm transition text-white">
         </div>
 
         <div id="add-form" class="bg-brand-card border border-brand-border p-6 rounded-2xl mb-8 shadow-lg">
@@ -153,6 +153,7 @@ Deno.serve(async (req: Request) => {
           </div>
         </div>
       </div>
+
       <div id="toast" class="fixed top-10 right-10 bg-brand-card border border-brand-primary text-white px-6 py-3 rounded-xl font-bold shadow-2xl transform translate-x-80 transition duration-300 opacity-0 z-[100]"></div>
 
       <script>
@@ -182,7 +183,6 @@ Deno.serve(async (req: Request) => {
           const errorMsg = document.getElementById('login-error');
           const username = document.getElementById('auth-user').value;
           const password = document.getElementById('auth-pw').value;
-          
           const res = await fetch('/auth', { method: 'POST', body: JSON.stringify({ username, password }) });
           if(res.ok) {
             currentUser = username;
