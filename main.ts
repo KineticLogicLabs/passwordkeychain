@@ -14,13 +14,16 @@ Deno.serve(async (req: Request) => {
 
     if (url.pathname === "/auth") {
       const user = await kv.get(["users", body.username]);
-      if (user.value && user.value.password === body.password) return new Response(JSON.stringify({ success: true }));
+      if (user.value && (user.value as any).password === body.password) {
+        return new Response(JSON.stringify({ success: true }));
+      }
       return new Response("Unauthorized", { status: 401 });
     }
 
     if (url.pathname === "/list") {
       const items = [];
-      for await (const entry of kv.list({ prefix: ["users", body.currentUser, "vault"] })) items.push(entry.value);
+      const iter = kv.list({ prefix: ["users", body.currentUser, "vault"] });
+      for await (const entry of iter) items.push(entry.value);
       return new Response(JSON.stringify(items));
     }
 
@@ -36,8 +39,11 @@ Deno.serve(async (req: Request) => {
 
     if (url.pathname === "/update-account") {
       const oldEntries = [];
-      for await (const entry of kv.list({ prefix: ["users", body.oldUser, "vault"] })) oldEntries.push(entry);
+      const iter = kv.list({ prefix: ["users", body.oldUser, "vault"] });
+      for await (const entry of iter) oldEntries.push(entry);
+      
       await kv.set(["users", body.newUser], { password: body.newPassword });
+      
       for (const entry of oldEntries) {
         const domain = entry.key[3];
         await kv.set(["users", body.newUser, "vault", domain], entry.value);
@@ -46,6 +52,11 @@ Deno.serve(async (req: Request) => {
       if (body.oldUser !== body.newUser) await kv.delete(["users", body.oldUser]);
       return new Response(JSON.stringify({ success: true }));
     }
+  }
+
+  // Only serve HTML on the root path
+  if (url.pathname !== "/") {
+    return new Response("Not Found", { status: 404 });
   }
 
   const html = `<!DOCTYPE html>
@@ -148,7 +159,7 @@ Deno.serve(async (req: Request) => {
             const q = document.getElementById('search').value.toLowerCase();
             const list = document.getElementById('vault-list');
             list.innerHTML = "";
-            data.filter(i => i.domain.includes(q)).forEach(item => {
+            data.filter(i => i.domain.toLowerCase().includes(q)).forEach(item => {
                 list.innerHTML += \`<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between"><div><div class="text-white font-bold">\${item.domain}</div><div class="text-gray-500 text-xs font-mono">\${item.username}</div></div><button onclick="deleteEntry('\${item.domain}')" class="text-red-500 text-xs font-bold transition px-2">Delete</button></div>\`;
             });
         }
