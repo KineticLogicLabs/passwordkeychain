@@ -42,6 +42,10 @@ serve(async (req) => {
 
       // 2. SAVE/UPDATE ENTRY
       if (url.pathname.endsWith("/save")) {
+        if (!body.currentUser || !body.entry || !body.entry.domain) {
+          return new Response(JSON.stringify({ error: "Incomplete Payload", details: "User ID or Domain missing" }), { status: 400, headers: corsHeaders });
+        }
+
         const { error } = await supabase
           .from('vault_entries')
           .upsert([{ 
@@ -50,7 +54,7 @@ serve(async (req) => {
             username: body.entry.username, 
             password: body.entry.password, 
             category: body.entry.category,
-            updated_at: new Date().toISOString() // Track last update
+            updated_at: new Date().toISOString() 
           }], { onConflict: 'owner,domain' });
 
         if (error) throw error;
@@ -97,12 +101,12 @@ serve(async (req) => {
         const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
         if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
 
-        const { data: users, error: userError } = await supabase.from('vault_users').select('username, password, role');
+        const { data: users } = await supabase.from('vault_users').select('username, password, role');
         const { data: counts } = await supabase.from('vault_entries').select('owner');
         
-        const processedUsers = users.map(u => ({
+        const processedUsers = (users || []).map(u => ({
             ...u,
-            entryCount: counts?.filter(c => c.owner === u.username).length || 0
+            entryCount: (counts || []).filter(c => c.owner === u.username).length || 0
         }));
 
         return new Response(JSON.stringify(processedUsers), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
