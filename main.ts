@@ -1,54 +1,70 @@
 const kv = await Deno.openKv();
 
 // --- AUTO-SETUP ---
-const initialUser = await kv.get(["users", "admin"]);
+// Ensure the admin user exists on startup
+const adminKey = ["users", "admin"];
+const initialUser = await kv.get(adminKey);
 if (!initialUser.value) {
-  await kv.set(["users", "admin"], { password: "password" });
+  await kv.set(adminKey, { password: "password" });
+  console.log("System: Default admin account created.");
 }
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
 
+  // Handle API Requests
   if (req.method === "POST") {
-    const body = await req.json();
+    try {
+      const body = await req.json();
 
-    if (url.pathname === "/auth") {
-      const user = await kv.get(["users", body.username]);
-      if (user.value && (user.value as any).password === body.password) {
-        return new Response(JSON.stringify({ success: true }), { 
-          headers: { "Content-Type": "application/json" } 
+      if (url.pathname === "/auth") {
+        const user = await kv.get(["users", body.username]);
+        if (user.value && (user.value as any).password === body.password) {
+          return new Response(JSON.stringify({ success: true }), {
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response("Unauthorized", { status: 401 });
+      }
+
+      if (url.pathname === "/list") {
+        const items = [];
+        const iter = kv.list({ prefix: ["users", body.currentUser, "vault"] });
+        for await (const entry of iter) items.push(entry.value);
+        return new Response(JSON.stringify(items), {
+          headers: { "Content-Type": "application/json" },
         });
       }
-      return new Response("Unauthorized", { status: 401 });
-    }
 
-    if (url.pathname === "/list") {
-      const items = [];
-      const iter = kv.list({ prefix: ["users", body.currentUser, "vault"] });
-      for await (const entry of iter) items.push(entry.value);
-      return new Response(JSON.stringify(items), { 
-        headers: { "Content-Type": "application/json" } 
-      });
-    }
+      if (url.pathname === "/save") {
+        await kv.set(["users", body.currentUser, "vault", body.entry.domain.toLowerCase()], body.entry);
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
 
-    if (url.pathname === "/save") {
-      await kv.set(["users", body.currentUser, "vault", body.entry.domain.toLowerCase()], body.entry);
-      return new Response(JSON.stringify({ success: true }));
-    }
+      if (url.pathname === "/delete") {
+        await kv.delete(["users", body.currentUser, "vault", body.domain.toLowerCase()]);
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
 
-    if (url.pathname === "/delete") {
-      await kv.delete(["users", body.currentUser, "vault", body.domain]);
-      return new Response(JSON.stringify({ success: true }));
-    }
-
-    if (url.pathname === "/create-account") {
-      const existing = await kv.get(["users", body.username]);
-      if (existing.value) return new Response("User exists", { status: 400 });
-      await kv.set(["users", body.username], { password: body.password });
-      return new Response(JSON.stringify({ success: true }));
+      if (url.pathname === "/create-account") {
+        const existing = await kv.get(["users", body.username]);
+        if (existing.value) return new Response("User exists", { status: 400 });
+        await kv.set(["users", body.username], { password: body.password });
+        return new Response(JSON.stringify({ success: true }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    } catch (err) {
+      console.error("Request Error:", err);
+      return new Response(JSON.stringify({ error: "Invalid Request" }), { status: 400 });
     }
   }
 
+  // Serve Frontend
   if (url.pathname !== "/") return new Response("Not Found", { status: 404 });
 
   const html = `<!DOCTYPE html>
@@ -164,7 +180,8 @@ Deno.serve(async (req: Request) => {
                     btn.innerText = "Access Vault";
                 }
             } catch (e) {
-                console.error(e);
+                console.error("Login Fetch Error:", e);
+                alert('Connection error');
                 btn.disabled = false;
                 btn.innerText = "Access Vault";
             }
@@ -215,6 +232,7 @@ Deno.serve(async (req: Request) => {
         }
 
         async function loadVault() {
+            if(!currentUser) return;
             const res = await fetch('/list', { 
                 method: 'POST', 
                 headers: { 'Content-Type': 'application/json' },
@@ -228,18 +246,27 @@ Deno.serve(async (req: Request) => {
             list.innerHTML = "";
             
             const filtered = data.filter(i => {
-                const matchesSearch = i.domain.toLowerCase().indexOf(q) !== -1 || i.username.toLowerCase().indexOf(q) !== -1;
+                const domain = i.domain || "";
+                const user = i.username || "";
+                const matchesSearch = domain.toLowerCase().includes(q) || user.toLowerCase().includes(q);
                 const matchesCategory = currentFilter === 'All' || i.category === currentFilter;
                 return matchesSearch && matchesCategory;
             });
 
             filtered.forEach(item => {
-                let row = '<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between items-center">';
-                row += '<div><div class="flex items-center gap-2"><span class="text-white font-bold">' + item.domain + '</span>';
-                row += '<span class="text-[9px] bg-blue-900/30 text-blue-400 px-2 rounded">' + (item.category || 'Personal') + '</span></div>';
-                row += '<div class="text-gray-500 text-xs font-mono">' + item.username + '</div></div>';
-                row += '<div class="flex gap-4"><button onclick="alert(\'Pass: \' + \'' + item.password + '\')" class="text-brand-primary text-xs">View</button>';
-                row += '<button onclick="deleteEntry(\'' + item.domain + '\')" class="text-red-500 text-xs">Delete</button></div></div>';
+                let row = \`<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-white font-bold">\${item.domain}</span>
+                            <span class="text-[9px] bg-blue-900/30 text-blue-400 px-2 rounded">\${item.category || 'Personal'}</span>
+                        </div>
+                        <div class="text-gray-500 text-xs font-mono">\${item.username}</div>
+                    </div>
+                    <div class="flex gap-4">
+                        <button onclick="alert('Pass: ' + '\${item.password}')" class="text-brand-primary text-xs">View</button>
+                        <button onclick="deleteEntry('\${item.domain}')" class="text-red-500 text-xs">Delete</button>
+                    </div>
+                </div>\`;
                 list.innerHTML += row;
             });
 
@@ -249,9 +276,10 @@ Deno.serve(async (req: Request) => {
             if(sessionDeleted.length > 0) {
                 delSec.classList.remove('hidden');
                 sessionDeleted.forEach(item => {
-                    let dRow = '<div class="bg-brand-card border border-brand-border p-3 rounded-lg flex justify-between items-center">';
-                    dRow += '<span class="text-xs text-gray-400">' + item.domain + '</span>';
-                    dRow += '<button onclick="restoreEntry(\'' + item.domain + '\')" class="text-green-500 text-[10px] font-bold">Restore</button></div>';
+                    let dRow = \`<div class="bg-brand-card border border-brand-border p-3 rounded-lg flex justify-between items-center">
+                        <span class="text-xs text-gray-400">\${item.domain}</span>
+                        <button onclick="restoreEntry('\${item.domain}')" class="text-green-500 text-[10px] font-bold">Restore</button>
+                    </div>\`;
                     delList.innerHTML += dRow;
                 });
             } else { delSec.classList.add('hidden'); }
@@ -302,9 +330,9 @@ Deno.serve(async (req: Request) => {
         document.addEventListener('keydown', (e) => { 
             if (e.key === 'Enter' && currentUser === "") handleLogin(); 
         });
-</script>
+    </script>
 </body>
-</html>`; // <--- Add this backtick here to close the string
+</html>`;
 
   return new Response(html, { headers: { "Content-Type": "text/html" } });
 });
