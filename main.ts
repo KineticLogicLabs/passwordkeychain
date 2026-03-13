@@ -58,7 +58,6 @@ Deno.serve(async (req: Request) => {
     return new Response("Not Found", { status: 404 });
   }
 
-  // The fix is in the script section below (escaped backticks and dollar signs)
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -160,8 +159,12 @@ Deno.serve(async (req: Request) => {
             const list = document.getElementById('vault-list');
             list.innerHTML = "";
             data.filter(i => i.domain.toLowerCase().includes(q)).forEach(item => {
-                // FIXED: Escaped the backticks and the dollar signs so Deno doesn't try to parse them
-                list.innerHTML += \\\`<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between"><div><div class="text-white font-bold">\\\${item.domain}</div><div class="text-gray-500 text-xs font-mono">\\\${item.username}</div></div><button onclick="deleteEntry('\\\${item.domain}')" class="text-red-500 text-xs font-bold transition px-2">Delete</button></div>\\\`;
+                // REWRITTEN TO AVOID TEMPLATE LITERALS ENTIRELY
+                var row = '<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between"><div>';
+                row += '<div class="text-white font-bold">' + item.domain + '</div>';
+                row += '<div class="text-gray-500 text-xs font-mono">' + item.username + '</div></div>';
+                row += '<button onclick="deleteEntry(\'' + item.domain + '\')" class="text-red-500 text-xs font-bold transition px-2">Delete</button></div>';
+                list.innerHTML += row;
             });
         }
         async function deleteEntry(domain) {
