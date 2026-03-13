@@ -24,8 +24,8 @@
         ::-webkit-scrollbar-track { background: #0a0a0a; }
         ::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
 
-        .cat-btn { @apply px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300; }
-        .cat-btn-inactive { @apply border-white/10 bg-white/5 text-gray-500 hover:text-white hover:border-white/30; }
+        .cat-btn { @apply px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300; }
+        .cat-btn-inactive { @apply border-white/10 bg-white/5 text-gray-500 hover:text-white hover:border-white/40; }
         .cat-btn-active { @apply border-blue-500 bg-blue-500/10 text-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]; }
     </style>
 </head>
@@ -49,14 +49,15 @@
             
             <div id="detail-modal-content">
                 <div class="mb-10 group">
-                    <p class="text-blue-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Record Details</p>
+                    <p id="edit-domain-label" class="text-blue-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Record Details</p>
                     <div class="flex items-center gap-3">
                         <input id="edit-domain" type="text" placeholder="Domain" oninput="checkForChanges()" class="text-3xl font-black bg-transparent border-none outline-none text-white w-full focus:text-blue-400 transition-colors">
                     </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                    <div class="bg-black/40 border border-white/5 p-5 rounded-2xl relative">
+                    <!-- Username Container -->
+                    <div id="edit-user-container" class="bg-black/40 border border-white/5 p-5 rounded-2xl relative">
                         <label id="edit-user-label" class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Username</label>
                         <div class="flex items-center">
                             <input id="edit-user" type="text" oninput="checkForChanges()" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm">
@@ -67,7 +68,8 @@
                             </button>
                         </div>
                     </div>
-                    <div class="bg-black/40 border border-white/5 p-5 rounded-2xl relative">
+                    <!-- Password/Address Container -->
+                    <div id="edit-pass-container" class="bg-black/40 border border-white/5 p-5 rounded-2xl relative">
                         <label id="edit-pass-label" class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Password</label>
                         <div class="flex items-center">
                             <input id="edit-pass" type="password" oninput="checkForChanges()" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm">
@@ -208,7 +210,7 @@
 
         <!-- Add Entry Console -->
         <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-12 shadow-xl">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div id="add-console-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 <input id="dom" placeholder="Domain (Google.com)" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
                 <input id="usr" placeholder="Identifier" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
                 <div class="relative">
@@ -379,26 +381,42 @@
         }
 
         function updateAddConsoleLabels(category) {
+            const domInput = document.getElementById('dom');
             const usrInput = document.getElementById('usr');
             const pwdInput = document.getElementById('pwd');
+            const grid = document.getElementById('add-console-grid');
+
             if (category === "Addresses") {
-                usrInput.placeholder = "Name (e.g. Home)";
+                domInput.placeholder = "Name (e.g. Home)";
                 pwdInput.placeholder = "Full Address";
+                usrInput.classList.add('hidden');
+                grid.classList.remove('md:grid-cols-3');
+                grid.classList.add('md:grid-cols-2');
             } else {
+                domInput.placeholder = "Domain (Google.com)";
                 usrInput.placeholder = "Identifier";
                 pwdInput.placeholder = "Secret Key";
+                usrInput.classList.remove('hidden');
+                grid.classList.remove('md:grid-cols-2');
+                grid.classList.add('md:grid-cols-3');
             }
         }
 
         function updateEditModalLabels(category) {
+            const domLabel = document.getElementById('edit-domain-label');
             const usrLabel = document.getElementById('edit-user-label');
             const passLabel = document.getElementById('edit-pass-label');
+            const usrContainer = document.getElementById('edit-user-container');
+
             if (category === "Addresses") {
-                usrLabel.innerText = "Name";
-                passLabel.innerText = "Address";
+                domLabel.innerText = "Location Name";
+                passLabel.innerText = "Address Details";
+                usrContainer.classList.add('hidden');
             } else {
+                domLabel.innerText = "Record Details";
                 usrLabel.innerText = "Username";
                 passLabel.innerText = "Password";
+                usrContainer.classList.remove('hidden');
             }
         }
 
@@ -407,12 +425,13 @@
         function checkForChanges() {
             if(!initialEntryState) return false;
             const current = {
-                domain: document.getElementById('edit-domain').value.trim().toLowerCase(),
+                domain: document.getElementById('edit-domain').value.trim(),
                 username: document.getElementById('edit-user').value.trim(),
                 password: document.getElementById('edit-pass').value,
                 category: selectedEditCategory
             };
 
+            // Capitalization now counts as a change
             const isChanged = current.domain !== initialEntryState.domain || 
                               current.username !== initialEntryState.username || 
                               current.password !== initialEntryState.password || 
@@ -480,8 +499,8 @@
             if (!currentUser) return showToast("Session Lost", "error");
             
             const entry = {
-                domain: document.getElementById('edit-domain').value.trim().toLowerCase(),
-                username: document.getElementById('edit-user').value.trim(),
+                domain: document.getElementById('edit-domain').value.trim(),
+                username: selectedEditCategory === "Addresses" ? "-" : document.getElementById('edit-user').value.trim(),
                 password: document.getElementById('edit-pass').value,
                 category: selectedEditCategory
             };
@@ -633,9 +652,14 @@
             const dom = document.getElementById('dom');
             const usr = document.getElementById('usr');
             const pwd = document.getElementById('pwd');
-            if(!dom.value.trim() || !pwd.value) return showToast("Domain/Address required", "error");
+            if(!dom.value.trim() || !pwd.value) return showToast("Missing Fields", "error");
             showLoading(true);
-            const entry = { domain: dom.value.trim().toLowerCase(), username: usr.value.trim(), password: pwd.value, category: selectedAddCategory };
+            const entry = { 
+                domain: dom.value.trim(), 
+                username: selectedAddCategory === "Addresses" ? "-" : usr.value.trim(), 
+                password: pwd.value, 
+                category: selectedAddCategory 
+            };
             try {
                 const res = await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) });
                 if(res.ok) {
@@ -666,7 +690,6 @@
             document.getElementById('vault-count').innerText = filteredData.length + ' encrypted records';
             
             document.getElementById('vault-list').innerHTML = filteredData.map((item, idx) => {
-                // Find original index in fullVaultData to maintain correct modal mapping
                 const originalIndex = fullVaultData.indexOf(item);
                 return `
                     <div onclick="openDetailModal(${originalIndex})" class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all group cursor-pointer relative btn-interact">
@@ -674,8 +697,8 @@
                             <div class="text-blue-500 bg-blue-500/10 px-3 py-1 rounded-lg">${item.category}</div>
                             <div class="text-gray-600 group-hover:text-blue-400 transition-colors uppercase font-black tracking-widest">Details</div>
                         </div>
-                        <div class="text-2xl font-black text-white mb-1 tracking-tight">${item.domain}</div>
-                        <div class="text-sm text-gray-500 font-mono mb-6 truncate opacity-60">${item.username}</div>
+                        <div class="text-2xl font-black text-white mb-1 tracking-tight truncate">${item.domain}</div>
+                        <div class="text-sm text-gray-500 font-mono mb-6 truncate opacity-60">${item.category === 'Addresses' ? '(Address Record)' : item.username}</div>
                         <div class="w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center group-hover:bg-blue-600 transition-colors">Modify Account</div>
                     </div>
                 `;
