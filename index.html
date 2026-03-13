@@ -7,10 +7,19 @@
     <style>
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
         .shake { animation: shake 0.15s ease-in-out 0s 2; }
-        .modal-bg { backdrop-filter: blur(12px); background: rgba(0,0,0,0.7); }
+        
+        /* Warning Toast Animation */
+        .toast-pop { animation: slideUp 0.4s ease-out forwards; }
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
-<body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans">
+<body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans overflow-x-hidden">
+
+    <div id="wrong-pw-toast" class="hidden fixed bottom-10 inset-x-0 flex justify-center z-[100]">
+        <div class="toast-pop bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl font-black uppercase tracking-widest border border-red-400">
+            ⚠️ Authentication Failed: Wrong Password
+        </div>
+    </div>
 
     <div id="auth-container" class="w-full max-w-md mx-auto mt-20">
         <div class="text-center mb-10">
@@ -19,12 +28,14 @@
         </div>
         <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
             <div class="space-y-4">
-                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none">
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
+                
                 <div class="relative">
-                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none">
-                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white">
-                        <svg id="eye-auth-pw" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                            <path d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
+                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors">
+                        <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                         </svg>
                     </button>
                 </div>
@@ -33,93 +44,51 @@
         </div>
     </div>
 
-    <div id="vault-screen" class="hidden w-full max-w-5xl mx-auto">
-        <div class="flex justify-between items-end mb-10">
-            <h1 class="text-4xl font-black text-white tracking-tight">My Vault</h1>
-            <button onclick="toggleSettings()" class="bg-[#171717] border border-[#262626] px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#212121]">Settings</button>
-        </div>
-
-        <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-10">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <input id="dom" placeholder="Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none">
-                <input id="usr" placeholder="Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none">
-                <input id="pwd" placeholder="Password" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none">
-                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none cursor-pointer"></select>
-            </div>
-            <button onclick="saveEntry()" class="w-full bg-blue-600 font-black py-4 rounded-2xl hover:bg-blue-500 transition-all text-xs tracking-widest uppercase">Save Entry</button>
-        </div>
-
-        <div id="vault-list" class="grid gap-4"></div>
-    </div>
-
     <script>
-        // UPDATE THIS WITH YOUR ACTUAL SUPABASE URL
         const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
-        let currentUser = "";
-        let currentCategories = [];
 
         function toggleVisibility(id) {
             const el = document.getElementById(id);
-            el.type = el.type === 'password' ? 'text' : 'password';
+            const icon = document.getElementById('eye-icon');
+            if (el.type === 'password') {
+                el.type = 'text';
+                icon.style.opacity = "0.4"; // Visual cue for "open"
+            } else {
+                el.type = 'password';
+                icon.style.opacity = "1";
+            }
         }
 
         async function handleLogin() {
             const u = document.getElementById('auth-user').value;
             const p = document.getElementById('auth-pw').value;
             const card = document.getElementById('login-card');
+            const toast = document.getElementById('wrong-pw-toast');
 
             try {
                 const res = await fetch(`${API_URL}/auth`, {
                     method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: u, password: p })
                 });
 
                 if (res.ok) {
-                    const data = await res.json();
-                    currentUser = u;
-                    currentCategories = data.categories;
-                    renderCategories();
+                    // Success logic
                     document.getElementById('auth-container').classList.add('hidden');
-                    document.getElementById('vault-screen').classList.remove('hidden');
-                    loadVault();
+                    // ... show vault
                 } else {
+                    // Shake and Show Bottom Warning
                     card.classList.add('shake');
-                    setTimeout(() => card.classList.remove('shake'), 500);
+                    toast.classList.remove('hidden');
+                    
+                    setTimeout(() => {
+                        card.classList.remove('shake');
+                        toast.classList.add('hidden');
+                    }, 3000);
                 }
             } catch (e) {
-                alert("Connection error to Supabase.");
+                console.error("API Connection Error");
             }
-        }
-
-        function renderCategories() {
-            const sel = document.getElementById('cat');
-            sel.innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
-        }
-
-        async function saveEntry() {
-            const entry = {
-                domain: document.getElementById('dom').value,
-                username: document.getElementById('usr').value,
-                password: document.getElementById('pwd').value,
-                category: document.getElementById('cat').value
-            };
-            await fetch(`${API_URL}/save`, { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
-            loadVault();
-        }
-
-        async function loadVault() {
-            const res = await fetch(`${API_URL}/list`, { method: 'POST', body: JSON.stringify({ currentUser }) });
-            const data = await res.json();
-            const list = document.getElementById('vault-list');
-            list.innerHTML = data.map(item => `
-                <div class="bg-[#171717] border border-[#262626] p-6 rounded-2xl flex justify-between items-center">
-                    <div>
-                        <div class="text-white font-bold">${item.domain}</div>
-                        <div class="text-gray-500 text-xs font-mono">${item.username}</div>
-                    </div>
-                    <div class="text-[10px] text-blue-500 font-black uppercase bg-blue-600/10 px-3 py-1 rounded-lg">${item.category}</div>
-                </div>
-            `).join('');
         }
     </script>
 </body>
