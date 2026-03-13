@@ -1,35 +1,69 @@
-<script>
-    // YOUR LIVE SUPABASE URL
-    const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
-
-    async function handleLogin() {
-        const userInp = document.getElementById('auth-user');
-        const passInp = document.getElementById('auth-pw');
-        
-        try {
-            const res = await fetch(`${API_URL}/auth`, { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: userInp.value, password: passInp.value }) 
-            });
-            const data = await res.json();
-            if(res.ok) {
-                currentUser = userInp.value;
-                categories = data.categories;
-                // Transition UI...
-            } else { showLoginError(); }
-        } catch (e) { showLoginError(); }
-    }
-
-    async function loadVault() {
-        const res = await fetch(`${API_URL}/list`, { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ currentUser }) 
-        });
-        fullVaultData = await res.json();
-        renderVault();
-    }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Keychain | Kinetic Logic Labs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        .shake { animation: shake 0.15s ease-in-out 0s 2; }
+        .modal-bg { backdrop-filter: blur(12px); background: rgba(0,0,0,0.7); }
+        .toast-pop { animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
+</head>
+<body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans overflow-x-hidden">
     
-    // ... Apply the ${API_URL}/ prefix to all other fetch calls (save, trash, etc.)
-</script>
+    <div id="toast-container" class="fixed bottom-10 inset-x-0 flex justify-center z-[100] pointer-events-none hidden">
+        <div class="toast-pop bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl font-bold border border-red-400 pointer-events-auto">
+            Authentication Failed: Please check your credentials.
+        </div>
+    </div>
+
+    <div id="detail-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-bg">
+        <div class="bg-[#171717] border border-[#262626] w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-8 right-8 text-gray-500 hover:text-white text-2xl">&times;</button>
+            <div id="modal-content"></div>
+        </div>
+    </div>
+
+    <div id="auth-container" class="w-full max-w-md mx-auto mt-20">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-black text-white tracking-tight">Password Keychain</h1>
+            <p class="text-blue-500 text-xs tracking-widest mt-2 uppercase font-bold">By Kinetic Logic Labs</p>
+        </div>
+        <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
+            <div class="space-y-4">
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
+                <div class="relative">
+                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
+                    <button onclick="togglePw('auth-pw')" class="absolute right-4 top-4 text-[10px] text-gray-500 hover:text-white uppercase font-black tracking-widest">Show</button>
+                </div>
+            </div>
+            <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95">ACCESS VAULT</button>
+            <p id="error-msg" class="text-red-500 text-center text-sm font-bold mt-4 opacity-0 transition-opacity">Invalid Password</p>
+        </div>
+    </div>
+
+    <script>
+        // --- THIS IS THE KEY CHANGE ---
+        const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
+
+        // Everywhere your code says: fetch('/auth') 
+        // It now says: fetch(`${API_URL}/auth`)
+
+        async function handleLogin() {
+            const userInp = document.getElementById('auth-user');
+            const passInp = document.getElementById('auth-pw');
+            try {
+                const res = await fetch(`${API_URL}/auth`, { 
+                    method: 'POST', body: JSON.stringify({ username: userInp.value, password: passInp.value }) 
+                });
+                // ... rest of your code ...
+            } catch { showLoginError(); }
+        }
+
+        // [Repeat for loadVault, saveEntry, deleteEntry, createNewAccount, etc.]
+    </script>
+</body>
+</html>
