@@ -242,9 +242,8 @@
             document.getElementById('edit-domain').value = entry.domain;
             document.getElementById('edit-user').value = entry.username;
             document.getElementById('edit-pass').value = entry.password;
-            document.getElementById('edit-pass').type = 'password'; // Reset to hidden
+            document.getElementById('edit-pass').type = 'password'; 
             
-            // Reset Eye icon in modal
             const modalEye = document.getElementById('eye-icon-edit-pass');
             modalEye.querySelectorAll('.eye-open').forEach(p => p.classList.remove('hidden'));
             modalEye.querySelector('.eye-slash').classList.add('hidden');
@@ -280,6 +279,8 @@
         }
 
         async function updateEntryFromModal() {
+            if (!currentUser) return showToast("Identity Lost: Re-login", "error");
+            
             const entry = {
                 domain: document.getElementById('edit-domain').value.trim(),
                 username: document.getElementById('edit-user').value.trim(),
@@ -304,7 +305,8 @@
                     closeDetailModal();
                     loadVault();
                 } else {
-                    showToast("Server update rejected", "error");
+                    const errData = await res.json().catch(() => ({}));
+                    showToast(errData.details || "Vault rejection: Check database", "error");
                 }
             } catch (e) {
                 showToast("Network synchronization failed", "error");
@@ -387,6 +389,8 @@
         }
 
         async function saveEntry() {
+            if (!currentUser) return showToast("Identity Lost: Re-login", "error");
+
             const dom = document.getElementById('dom');
             const usr = document.getElementById('usr');
             const pwd = document.getElementById('pwd');
@@ -411,7 +415,8 @@
                     dom.value = ""; usr.value = ""; pwd.value = "";
                     loadVault();
                 } else {
-                    showToast("Vault rejection: Check database", "error");
+                    const errData = await res.json().catch(() => ({}));
+                    showToast(errData.details || "Vault rejection: Check database", "error");
                 }
             } catch (e) {
                 showToast("Synchronization failure", "error");
