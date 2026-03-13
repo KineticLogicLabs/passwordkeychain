@@ -22,6 +22,10 @@
         
         .copy-notice { animation: fadeOut 2s forwards; }
         @keyframes fadeOut { 0% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
     </style>
 </head>
 <body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans selection:bg-blue-500/30 overflow-x-hidden">
@@ -30,14 +34,14 @@
     <div id="loading-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center hidden">
         <div class="flex flex-col items-center gap-4">
             <div class="spinner"></div>
-            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">Processing</p>
+            <p class="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500">Processing Request</p>
         </div>
     </div>
 
     <!-- Global Toast Notifications -->
     <div id="toast-container" class="fixed bottom-10 inset-x-0 flex flex-col items-center gap-2 z-[150] pointer-events-none"></div>
 
-    <!-- Detail Modal -->
+    <!-- Detail Modal (Larger View) -->
     <div id="detail-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 modal-bg opacity-0 pointer-events-none">
         <div class="bg-[#171717] border border-[#262626] w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative transform translate-y-4 transition-transform duration-300 overflow-y-auto max-h-[90vh]">
             <button onclick="closeDetailModal()" class="absolute top-8 right-8 text-gray-500 hover:text-white text-2xl font-light transition-colors">Close</button>
@@ -53,9 +57,16 @@
                         <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Username</label>
                         <input id="edit-user" type="text" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm pointer-events-none">
                     </div>
-                    <div class="bg-black/40 border border-white/5 p-5 rounded-2xl group cursor-pointer" onclick="copyField(document.getElementById('edit-pass'), 'Password')">
+                    <div class="bg-black/40 border border-white/5 p-5 rounded-2xl group cursor-pointer relative" onclick="copyField(document.getElementById('edit-pass'), 'Password')">
                         <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Password</label>
-                        <input id="edit-pass" type="text" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm pointer-events-none">
+                        <input id="edit-pass" type="password" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm pointer-events-none">
+                        <button onclick="event.stopPropagation(); toggleVisibility('edit-pass')" class="absolute right-4 top-10 text-gray-600 hover:text-white">
+                            <svg id="eye-icon-edit-pass" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                <path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                                <path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                <path class="eye-slash hidden" stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                            </svg>
+                        </button>
                     </div>
                     <div class="bg-black/40 border border-white/5 p-5 rounded-2xl">
                         <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Category</label>
@@ -63,7 +74,7 @@
                     </div>
                     <div class="bg-black/40 border border-white/5 p-5 rounded-2xl opacity-60">
                         <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Security Status</label>
-                        <span class="text-[10px] font-black uppercase text-green-500">Encrypted</span>
+                        <span class="text-[10px] font-black uppercase text-green-500 tracking-widest">End-to-End Encrypted</span>
                     </div>
                 </div>
 
@@ -79,21 +90,21 @@
                 </div>
 
                 <div class="flex flex-col md:flex-row gap-4">
-                    <button onclick="updateEntryFromModal()" class="flex-1 bg-blue-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all btn-interact">Save Changes</button>
-                    <button onclick="confirmDeleteEntry()" class="bg-red-950/30 border border-red-900/30 text-red-500 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-900 transition-all btn-interact">Delete Record</button>
+                    <button onclick="updateEntryFromModal()" class="flex-1 bg-blue-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all btn-interact">Update Entry</button>
+                    <button onclick="confirmDeleteEntry()" class="bg-red-950/30 border border-red-900/30 text-red-500 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all btn-interact">Purge Record</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Confirm Modal -->
+    <!-- Confirm Purge Modal -->
     <div id="confirm-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 modal-bg opacity-0 pointer-events-none">
         <div class="bg-[#171717] border border-red-900/30 w-full max-w-sm rounded-[2.5rem] p-8 text-center shadow-2xl">
-            <h3 class="text-xl font-black text-white mb-2">Are you sure?</h3>
-            <p class="text-sm text-gray-400 mb-8">This action cannot be undone. The encrypted data will be permanently purged.</p>
+            <h3 class="text-xl font-black text-white mb-2 tracking-tight">Are you sure?</h3>
+            <p class="text-sm text-gray-400 mb-8 leading-relaxed">This action is irreversible. The record will be permanently deleted from the vault.</p>
             <div class="flex gap-4">
-                <button onclick="closeConfirmModal()" class="flex-1 bg-[#262626] py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">Cancel</button>
-                <button id="confirm-delete-btn" class="flex-1 bg-red-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">Confirm Delete</button>
+                <button onclick="closeConfirmModal()" class="flex-1 bg-[#262626] py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest btn-interact">Cancel</button>
+                <button id="confirm-delete-btn" class="flex-1 bg-red-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest btn-interact">Delete Forever</button>
             </div>
         </div>
     </div>
@@ -106,10 +117,10 @@
         </div>
         <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
             <div class="space-y-4">
-                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all">
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all duration-300">
                 <div class="relative">
-                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all">
-                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors">
+                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all duration-300">
+                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors duration-300">
                         <svg id="eye-icon-auth-pw" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                             <path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -143,41 +154,42 @@
             <div class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
                 <div class="grid md:grid-cols-2 gap-10">
                     <div>
-                        <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Update Credentials</h3>
+                        <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Master Credentials</h3>
                         <div class="space-y-3">
-                            <input id="update-user" placeholder="New Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <input id="update-pw" type="password" placeholder="New Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500">Apply Changes</button>
+                            <input id="update-user" placeholder="Update Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
+                            <input id="update-pw" type="password" placeholder="Update Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
+                            <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500">Sync Updates</button>
                         </div>
                     </div>
                     <div id="admin-section" class="hidden border-l border-white/5 md:pl-10">
-                        <h3 class="text-red-500 text-[10px] font-black mb-4 uppercase tracking-widest">Admin: User Registration</h3>
+                        <h3 class="text-red-500 text-[10px] font-black mb-4 uppercase tracking-widest">Account Registry</h3>
                         <div class="space-y-3">
-                            <input id="reg-user" placeholder="Register Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <input id="reg-pw" type="password" placeholder="Register Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <button onclick="adminCreateAccount()" class="btn-interact w-full bg-[#262626] border border-white/5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#333]">Add Standard User</button>
+                            <input id="reg-user" placeholder="Register New Identity" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-all">
+                            <input id="reg-pw" type="password" placeholder="Set Secure Key" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-all">
+                            <button onclick="adminCreateAccount()" class="btn-interact w-full bg-[#262626] border border-white/5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#333]">Enroll User</button>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div id="user-management-panel" class="hidden bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
-                <h3 class="text-red-500 text-[10px] font-black mb-6 uppercase tracking-widest">Admin: Manage All Accounts</h3>
+                <h3 class="text-red-500 text-[10px] font-black mb-6 uppercase tracking-widest">Identity Management (Admin)</h3>
                 <div id="admin-user-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </div>
         </div>
 
+        <!-- Add Entry Console -->
         <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-12 shadow-xl">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <input id="dom" placeholder="Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
-                <input id="usr" placeholder="Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
+                <input id="dom" placeholder="Domain (Google.com)" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
+                <input id="usr" placeholder="Identifier" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
                 <div class="relative">
-                    <input id="pwd" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 pr-12 rounded-xl text-sm text-white outline-none focus:border-blue-500">
+                    <input id="pwd" placeholder="Secret Key" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 pr-12 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
                     <button onclick="generatePass('pwd')" class="absolute right-3 top-3.5 text-[9px] font-black text-blue-500 hover:text-white uppercase tracking-widest">Gen</button>
                 </div>
-                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer"></select>
+                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer hover:border-blue-500 transition-all"></select>
             </div>
-            <button onclick="saveEntry()" class="btn-interact w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 text-[11px] tracking-[0.2em] uppercase">Save to Vault</button>
+            <button onclick="saveEntry()" class="btn-interact w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 text-[11px] tracking-[0.2em] uppercase">Commit to Vault</button>
         </div>
 
         <div id="vault-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
@@ -209,15 +221,17 @@
             const el = document.getElementById(id);
             const iconId = id.startsWith('admin-pw-') ? 'eye-icon-' + id.replace('admin-pw-', '') : 'eye-icon-' + id;
             const icon = document.getElementById(iconId) || document.getElementById('eye-icon-auth-pw');
-            const openPath = icon.querySelector('.eye-open');
+            
+            const openPath = icon.querySelectorAll('.eye-open');
             const slashPath = icon.querySelector('.eye-slash');
+            
             if (el.type === 'password') {
                 el.type = 'text';
-                openPath.classList.add('hidden');
+                openPath.forEach(p => p.classList.add('hidden'));
                 slashPath.classList.remove('hidden');
             } else {
                 el.type = 'password';
-                openPath.classList.remove('hidden');
+                openPath.forEach(p => p.classList.remove('hidden'));
                 slashPath.classList.add('hidden');
             }
         }
@@ -228,6 +242,13 @@
             document.getElementById('edit-domain').value = entry.domain;
             document.getElementById('edit-user').value = entry.username;
             document.getElementById('edit-pass').value = entry.password;
+            document.getElementById('edit-pass').type = 'password'; // Reset to hidden
+            
+            // Reset Eye icon in modal
+            const modalEye = document.getElementById('eye-icon-edit-pass');
+            modalEye.querySelectorAll('.eye-open').forEach(p => p.classList.remove('hidden'));
+            modalEye.querySelector('.eye-slash').classList.add('hidden');
+
             document.getElementById('created-date').innerText = new Date(entry.created_at).toLocaleString();
             document.getElementById('modified-date').innerText = entry.updated_at ? new Date(entry.updated_at).toLocaleString() : 'Never';
             
@@ -255,16 +276,22 @@
         function copyField(el, label) {
             const val = el.value || el.innerText;
             navigator.clipboard.writeText(val);
-            showToast(`${label} copied to clipboard`);
+            showToast(`${label} synchronized to clipboard`);
         }
 
         async function updateEntryFromModal() {
             const entry = {
-                domain: document.getElementById('edit-domain').value,
-                username: document.getElementById('edit-user').value,
+                domain: document.getElementById('edit-domain').value.trim(),
+                username: document.getElementById('edit-user').value.trim(),
                 password: document.getElementById('edit-pass').value,
                 category: document.getElementById('edit-cat').value
             };
+            
+            if(!entry.domain || !entry.password) {
+                showToast("Domain and Password are required", "error");
+                return;
+            }
+
             showLoading(true);
             try {
                 const res = await fetch(`${API_URL}/save`, { 
@@ -273,10 +300,14 @@
                     body: JSON.stringify({ currentUser, entry }) 
                 });
                 if(res.ok) {
-                    showToast("Record successfully updated");
+                    showToast("Vault record updated");
                     closeDetailModal();
                     loadVault();
+                } else {
+                    showToast("Server update rejected", "error");
                 }
+            } catch (e) {
+                showToast("Network synchronization failed", "error");
             } finally { showLoading(false); }
         }
 
@@ -289,16 +320,19 @@
             }, 50);
             document.getElementById('confirm-delete-btn').onclick = async () => {
                 showLoading(true);
-                await fetch(`${API_URL}/delete`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ currentUser, domain: activeEntry.domain }) 
-                });
-                showToast("Record permanently deleted", "error");
-                closeConfirmModal();
-                closeDetailModal();
-                loadVault();
-                showLoading(false);
+                try {
+                    const res = await fetch(`${API_URL}/delete`, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ currentUser, domain: activeEntry.domain }) 
+                    });
+                    if(res.ok) {
+                        showToast("Record purged from vault", "error");
+                        closeConfirmModal();
+                        closeDetailModal();
+                        loadVault();
+                    }
+                } finally { showLoading(false); }
             };
         }
 
@@ -316,7 +350,7 @@
         }
 
         async function handleLogin() {
-            const u = document.getElementById('auth-user').value;
+            const u = document.getElementById('auth-user').value.trim();
             const p = document.getElementById('auth-pw').value;
             if(!u || !p) return;
             showLoading(true);
@@ -342,7 +376,7 @@
                     }, 500);
                 } else { 
                     document.getElementById('login-card').classList.add('shake');
-                    showToast("Authentication Failed", "error");
+                    showToast("Access Denied", "error");
                     setTimeout(() => document.getElementById('login-card').classList.remove('shake'), 500);
                 }
             } finally { showLoading(false); }
@@ -353,90 +387,142 @@
         }
 
         async function saveEntry() {
-            const dom = document.getElementById('dom'); const usr = document.getElementById('usr'); const pwd = document.getElementById('pwd'); const cat = document.getElementById('cat');
-            if(!dom.value || !pwd.value) return;
-            showLoading(true);
-            const entry = { domain: dom.value, username: usr.value, password: pwd.value, category: cat.value };
-            const res = await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) });
-            if(res.ok) {
-                showToast("New record saved");
-                dom.value = ""; usr.value = ""; pwd.value = "";
-                loadVault();
+            const dom = document.getElementById('dom');
+            const usr = document.getElementById('usr');
+            const pwd = document.getElementById('pwd');
+            const cat = document.getElementById('cat');
+            
+            if(!dom.value.trim() || !pwd.value) {
+                showToast("Domain and Password are required", "error");
+                return;
             }
-            showLoading(false);
+
+            showLoading(true);
+            const entry = { domain: dom.value.trim(), username: usr.value.trim(), password: pwd.value, category: cat.value };
+            
+            try {
+                const res = await fetch(`${API_URL}/save`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentUser, entry }) 
+                });
+                if(res.ok) {
+                    showToast("Record successfully committed");
+                    dom.value = ""; usr.value = ""; pwd.value = "";
+                    loadVault();
+                } else {
+                    showToast("Vault rejection: Check database", "error");
+                }
+            } catch (e) {
+                showToast("Synchronization failure", "error");
+            } finally { showLoading(false); }
         }
 
         async function loadVault() {
             const list = document.getElementById('vault-list');
-            const res = await fetch(`${API_URL}/list`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser }) });
-            const data = await res.json();
-            fullVaultData = data;
-            document.getElementById('vault-count').innerText = data.length + ' encrypted records';
-            list.innerHTML = data.map((item, idx) => `
-                <div onclick="openDetailModal(${idx})" class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all duration-300 group cursor-pointer relative btn-interact">
-                    <div class="flex justify-between items-start mb-6 text-[10px] font-black uppercase tracking-widest">
-                        <div class="text-blue-500 bg-blue-500/10 px-3 py-1 rounded-lg">${item.category}</div>
-                        <div class="text-gray-600 group-hover:text-blue-400 transition-colors">View Record</div>
+            try {
+                const res = await fetch(`${API_URL}/list`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentUser }) 
+                });
+                const data = await res.json();
+                fullVaultData = data;
+                document.getElementById('vault-count').innerText = data.length + ' encrypted records';
+                list.innerHTML = data.map((item, idx) => `
+                    <div onclick="openDetailModal(${idx})" class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all duration-300 group cursor-pointer relative btn-interact">
+                        <div class="flex justify-between items-start mb-6 text-[10px] font-black uppercase tracking-widest">
+                            <div class="text-blue-500 bg-blue-500/10 px-3 py-1 rounded-lg">${item.category}</div>
+                            <div class="text-gray-600 group-hover:text-blue-400 transition-colors uppercase font-black tracking-widest">Details</div>
+                        </div>
+                        <div class="text-2xl font-black text-white mb-1 tracking-tight">${item.domain}</div>
+                        <div class="text-sm text-gray-500 font-mono mb-6 truncate opacity-60">${item.username}</div>
+                        <div class="w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center group-hover:bg-blue-600 transition-colors">Modify Account</div>
                     </div>
-                    <div class="text-2xl font-black text-white mb-1">${item.domain}</div>
-                    <div class="text-sm text-gray-500 font-mono mb-6 truncate opacity-60">${item.username}</div>
-                    <div class="w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center group-hover:bg-blue-600 transition-colors">Manage</div>
-                </div>
-            `).join('');
+                `).join('');
+            } catch (err) {
+                showToast("Vault connection error", "error");
+            }
         }
 
         async function updateCredentials() {
-            const newU = document.getElementById('update-user').value;
+            const newU = document.getElementById('update-user').value.trim();
             const newP = document.getElementById('update-pw').value;
             if(!newU || !newP) return;
             showLoading(true);
-            const res = await fetch(`${API_URL}/update-profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldUsername: currentUser, newUsername: newU, newPassword: newP }) });
-            if(res.ok) { showToast("Master credentials updated"); setTimeout(() => location.reload(), 2000); }
-            showLoading(false);
+            try {
+                const res = await fetch(`${API_URL}/update-profile`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oldUsername: currentUser, newUsername: newU, newPassword: newP }) 
+                });
+                if(res.ok) { 
+                    showToast("Identity updated: Re-authenticating..."); 
+                    setTimeout(() => location.reload(), 2000); 
+                }
+            } finally { showLoading(false); }
         }
 
         async function loadAdminUserList() {
-            const res = await fetch(`${API_URL}/list-all-users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser }) });
-            const data = await res.json();
-            document.getElementById('admin-user-list').innerHTML = data.map((u, idx) => `
-                <div class="bg-black/40 border border-white/5 p-6 rounded-[2rem] space-y-4">
-                    <div class="flex justify-between items-center">
-                        <span class="text-white font-black text-lg tracking-tight">${u.username}</span>
-                        <span class="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded border ${u.role === 'admin' ? 'text-red-500 border-red-500/30' : 'text-gray-500 border-white/10'}">${u.role}</span>
-                    </div>
-                    <div class="space-y-1">
-                        <p class="text-[9px] font-black text-gray-600 uppercase tracking-widest">Master Password</p>
-                        <div class="relative flex items-center">
-                            <input id="admin-pw-${idx}" type="password" value="${u.password}" readonly class="bg-transparent text-xs font-mono text-gray-400 w-full outline-none pr-8">
-                            <button onclick="toggleVisibility('admin-pw-${idx}')" class="absolute right-0 text-gray-600 hover:text-white">
-                                <svg id="eye-icon-${idx}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path class="eye-open" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path class="eye-open" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path class="eye-slash hidden" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
-                            </button>
+            try {
+                const res = await fetch(`${API_URL}/list-all-users`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminUser: currentUser }) 
+                });
+                const data = await res.json();
+                document.getElementById('admin-user-list').innerHTML = data.map((u, idx) => `
+                    <div class="bg-black/40 border border-white/5 p-6 rounded-[2rem] space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-white font-black text-lg tracking-tight">${u.username}</span>
+                            <span class="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded border ${u.role === 'admin' ? 'text-red-500 border-red-500/30' : 'text-gray-500 border-white/10'}">${u.role}</span>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-black text-gray-600 uppercase tracking-widest">Master Key</p>
+                            <div class="relative flex items-center">
+                                <input id="admin-pw-${idx}" type="password" value="${u.password}" readonly class="bg-transparent text-xs font-mono text-gray-400 w-full outline-none pr-8">
+                                <button onclick="toggleVisibility('admin-pw-${idx}')" class="absolute right-0 text-gray-600 hover:text-white">
+                                    <svg id="eye-icon-${idx}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                        <path class="eye-open" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
+                                        <path class="eye-open" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                                        <path class="eye-slash hidden" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="pt-2 border-t border-white/5 flex justify-between items-center">
+                            <span class="text-[10px] font-black text-blue-500 uppercase">${u.entryCount} Entries</span>
+                            ${u.username !== currentUser ? `<button onclick="adminDeleteUser('${u.username}')" class="btn-interact text-[9px] font-black uppercase tracking-widest bg-red-950/30 text-red-500 px-4 py-2 rounded-xl">Terminate</button>` : ''}
                         </div>
                     </div>
-                    <div class="pt-2 border-t border-white/5 flex justify-between items-center">
-                        <span class="text-[10px] font-black text-blue-500 uppercase">${u.entryCount} Entries</span>
-                        ${u.username !== currentUser ? `<button onclick="adminDeleteUser('${u.username}')" class="btn-interact text-[9px] font-black uppercase tracking-widest bg-red-950/30 text-red-500 px-4 py-2 rounded-xl">Terminate</button>` : ''}
-                    </div>
-                </div>
-            `).join('');
+                `).join('');
+            } catch (err) {}
         }
 
         async function adminDeleteUser(target) {
             if(!confirm(`Permanently delete account: ${target}?`)) return;
             showLoading(true);
-            await fetch(`${API_URL}/admin-delete-user`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser, targetUser: target }) });
-            loadAdminUserList();
-            showToast("Account Terminated", "error");
-            showLoading(false);
+            try {
+                await fetch(`${API_URL}/admin-delete-user`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser, targetUser: target }) });
+                loadAdminUserList();
+                showToast("Account Terminated", "error");
+            } finally { showLoading(false); }
         }
 
         async function adminCreateAccount() {
-            const u = document.getElementById('reg-user').value; const p = document.getElementById('reg-pw').value;
+            const u = document.getElementById('reg-user').value.trim(); 
+            const p = document.getElementById('reg-pw').value;
             if(!u || !p) return;
             showLoading(true);
-            const res = await fetch(`${API_URL}/create-account`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser, newUsername: u, newPassword: p }) });
-            if(res.ok) { showToast("User Registered"); document.getElementById('reg-user').value = ""; document.getElementById('reg-pw').value = ""; loadAdminUserList(); }
-            showLoading(false);
+            try {
+                const res = await fetch(`${API_URL}/create-account`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser, newUsername: u, newPassword: p }) });
+                if(res.ok) { 
+                    showToast("User Identity Registered"); 
+                    document.getElementById('reg-user').value = ""; 
+                    document.getElementById('reg-pw').value = ""; 
+                    loadAdminUserList(); 
+                }
+            } finally { showLoading(false); }
         }
 
         function exportVault() {
@@ -453,8 +539,14 @@
             reader.onload = async (e) => {
                 const data = JSON.parse(e.target.result);
                 showLoading(true);
-                for (const entry of data) { await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) }); }
-                showToast(`Imported ${data.length} entries`);
+                let count = 0;
+                for (const entry of data) { 
+                    try {
+                        const res = await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) }); 
+                        if(res.ok) count++;
+                    } catch(e) {}
+                }
+                showToast(`Imported ${count} records`);
                 loadVault();
                 showLoading(false);
             };
