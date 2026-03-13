@@ -24,9 +24,9 @@
         ::-webkit-scrollbar-track { background: #0a0a0a; }
         ::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
 
-        .cat-btn { @apply px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all; }
-        .cat-btn-inactive { @apply border-white/5 bg-white/5 text-gray-500 hover:text-white hover:bg-white/10; }
-        .cat-btn-active { @apply border-blue-500 bg-blue-500/10 text-blue-500; }
+        .cat-btn { @apply px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all duration-300; }
+        .cat-btn-inactive { @apply border-white/10 bg-white/5 text-gray-500 hover:text-white hover:border-white/30; }
+        .cat-btn-active { @apply border-blue-500 bg-blue-500/10 text-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.2)]; }
     </style>
 </head>
 <body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans selection:bg-blue-500/30 overflow-x-hidden">
@@ -52,11 +52,6 @@
                     <p class="text-blue-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Record Details</p>
                     <div class="flex items-center gap-3">
                         <input id="edit-domain" type="text" oninput="checkForChanges()" class="text-3xl font-black bg-transparent border-none outline-none text-white w-full focus:text-blue-400 transition-colors">
-                        <button onclick="copyField(document.getElementById('edit-domain'), 'Domain')" class="text-gray-600 hover:text-white transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-                            </svg>
-                        </button>
                     </div>
                 </div>
 
@@ -111,7 +106,7 @@
                 </div>
 
                 <div class="flex items-center gap-4">
-                    <button id="modal-action-btn" onclick="updateEntryFromModal()" class="flex-[3] bg-blue-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all btn-interact">Close</button>
+                    <button id="modal-action-btn" onclick="updateEntryFromModal()" class="flex-[3] bg-[#262626] py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all btn-interact">Close</button>
                     <button onclick="confirmDeleteEntry()" class="flex-1 bg-red-950/20 border border-red-900/30 text-red-500 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all btn-interact">Delete</button>
                 </div>
             </div>
@@ -171,6 +166,7 @@
             </div>
         </div>
 
+        <!-- Settings Panel -->
         <div id="settings-panel" class="settings-transition space-y-8">
             <div class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
                 <div class="grid md:grid-cols-2 gap-10">
@@ -182,10 +178,21 @@
                             <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Sync Updates</button>
                         </div>
                     </div>
+                    
+                    <!-- Category Manager -->
+                    <div class="border-l border-white/5 md:pl-10">
+                        <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Vault Schema (Categories)</h3>
+                        <div id="category-manager-list" class="flex flex-wrap gap-2 mb-6"></div>
+                        <div class="flex gap-2">
+                            <input id="new-cat-input" placeholder="New Tag..." class="flex-1 bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-xs text-white outline-none focus:border-blue-500 transition-all">
+                            <button onclick="addCategory()" class="btn-interact bg-blue-600 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Add</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- Add Entry Console -->
         <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-12 shadow-xl">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <input id="dom" placeholder="Domain (Google.com)" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
@@ -242,6 +249,58 @@
             }
         }
 
+        // Settings Category Manager
+        function renderSettingsCategories() {
+            const container = document.getElementById('category-manager-list');
+            container.innerHTML = currentCategories.map(c => `
+                <div class="flex items-center bg-[#0a0a0a] border border-white/10 pl-4 pr-2 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest">
+                    <span>${c}</span>
+                    <button onclick="deleteCategory('${c}')" class="ml-3 p-2 text-gray-600 hover:text-red-500 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+            
+            // Sync main category dropdowns
+            document.getElementById('cat').innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+            if(activeEntry) renderCategoryButtons(selectedEditCategory);
+        }
+
+        async function addCategory() {
+            const input = document.getElementById('new-cat-input');
+            const val = input.value.trim();
+            if(!val || currentCategories.includes(val)) return;
+            currentCategories.push(val);
+            input.value = "";
+            renderSettingsCategories();
+            await syncCategoriesToServer();
+        }
+
+        async function deleteCategory(c) {
+            currentCategories = currentCategories.filter(item => item !== c);
+            renderSettingsCategories();
+            await syncCategoriesToServer();
+        }
+
+        async function syncCategoriesToServer() {
+            if(!currentUser) return;
+            try {
+                // Reusing update-profile methodology to save schema changes
+                await fetch(`${API_URL}/update-profile`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        oldUsername: currentUser, 
+                        newUsername: currentUser, 
+                        newCategories: currentCategories 
+                    }) 
+                });
+            } catch (e) {}
+        }
+
+        // Modal Category Buttons
         function renderCategoryButtons(active) {
             const container = document.getElementById('edit-cat-buttons');
             selectedEditCategory = active;
@@ -405,7 +464,7 @@
                     const data = await res.json();
                     currentUser = u;
                     currentCategories = data.categories || currentCategories;
-                    document.getElementById('cat').innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+                    renderSettingsCategories();
                     document.getElementById('auth-container').classList.add('opacity-0');
                     setTimeout(() => {
                         document.getElementById('auth-container').classList.add('hidden');
