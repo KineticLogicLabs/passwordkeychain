@@ -1,2 +1,2 @@
 [functions.keychain]
-verify_jwt = false # This allows your index.html to talk to the API easily
+verify_jwt = false
