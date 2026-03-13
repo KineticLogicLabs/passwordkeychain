@@ -37,91 +37,85 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ success: true }));
     }
 
-    if (url.pathname === "/update-account") {
-      const oldEntries = [];
-      const iter = kv.list({ prefix: ["users", body.oldUser, "vault"] });
-      for await (const entry of iter) oldEntries.push(entry);
-      
-      await kv.set(["users", body.newUser], { password: body.newPassword });
-      
-      for (const entry of oldEntries) {
-        const domain = (entry.key[3] as string);
-        await kv.set(["users", body.newUser, "vault", domain], entry.value);
-        await kv.delete(["users", body.oldUser, "vault", domain]);
-      }
-      if (body.oldUser !== body.newUser) await kv.delete(["users", body.oldUser]);
+    if (url.pathname === "/create-account") {
+      const existing = await kv.get(["users", body.username]);
+      if (existing.value) return new Response("User exists", { status: 400 });
+      await kv.set(["users", body.username], { password: body.password });
       return new Response(JSON.stringify({ success: true }));
     }
   }
 
-  if (url.pathname !== "/") {
-    return new Response("Not Found", { status: 404 });
-  }
+  if (url.pathname !== "/") return new Response("Not Found", { status: 404 });
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Keychain | Kinetic Logic Labs</title>
+    <title>Keychain | Kinetic Logic Labs</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config = { theme: { extend: { colors: { brand: { bg: '#0a0a0a', card: '#171717', border: '#262626', primary: '#3b82f6', accent: '#60a5fa' } } } } }</script>
-    <style>
-        .modal-bg { background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); }
-        .hidden { display: none !important; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .spinner { width: 24px; height: 24px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-8px); } }
-        .shake { animation: shake 0.4s ease-in-out; border-color: #ef4444 !important; }
-    </style>
+    <script>tailwind.config = { theme: { extend: { colors: { brand: { bg: '#0a0a0a', card: '#171717', border: '#262626', primary: '#3b82f6' } } } } }</script>
 </head>
-<body class="bg-brand-bg text-gray-200 min-h-screen flex flex-col items-center p-6 transition-opacity duration-500">
-    <div id="loader" class="hidden fixed inset-0 z-[200] modal-bg flex items-center justify-center"><div class="spinner"></div></div>
-    <div id="auth-container" class="w-full max-w-md mt-20">
+<body class="bg-brand-bg text-gray-200 p-6">
+    <div id="auth-container" class="w-full max-w-md mx-auto mt-20">
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-white tracking-tight">Password Keychain</h1>
-            <p class="text-brand-accent text-sm font-medium uppercase tracking-widest mt-1">By Kinetic Logic Labs</p>
+            <h1 class="text-3xl font-bold text-white">Password Keychain</h1>
+            <p class="text-blue-400 text-xs tracking-widest mt-1 uppercase">Kinetic Logic Labs</p>
         </div>
         <div id="login-card" class="bg-brand-card border border-brand-border p-8 rounded-2xl shadow-2xl">
-            <h2 class="text-white font-bold mb-6 text-xl">Log In</h2>
-            <input id="auth-user" placeholder="Username" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-3 outline-none focus:border-brand-primary transition text-white">
-            <div class="relative mb-6">
-                <input id="auth-pw" type="password" placeholder="Master Password" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg outline-none focus:border-brand-primary transition text-white pr-12">
-                <button onclick="toggleLoginVisibility()" class="absolute right-3 top-3.5 text-gray-500 hover:text-brand-primary transition">
-                    <svg id="eye-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                </button>
-            </div>
+            <input id="auth-user" placeholder="Username" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-3 text-white outline-none focus:border-brand-primary">
+            <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-6 text-white outline-none focus:border-brand-primary">
             <button onclick="handleLogin()" class="w-full bg-brand-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition">Access Vault</button>
-            <p id="login-error" class="text-red-500 text-sm text-center mt-4 opacity-0 transition-opacity">Invalid Credentials</p>
         </div>
     </div>
-    <div id="vault-screen" class="hidden w-full max-w-2xl">
-        <div class="flex justify-between items-center mb-8">
-            <h1 class="text-2xl font-bold text-white">My Vault</h1>
+
+    <div id="vault-screen" class="hidden w-full max-w-2xl mx-auto">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-white">My Vault</h1>
+                <p id="vault-count" class="text-xs text-gray-500 font-mono">0 saved keys</p>
+            </div>
             <div class="flex gap-2">
-                <button onclick="document.getElementById('settings-panel').classList.toggle('hidden')" class="text-xs bg-brand-card border border-brand-border px-4 py-2 rounded-lg">Settings</button>
-                <button onclick="location.reload()" class="text-xs bg-brand-card border border-brand-border px-4 py-2 rounded-lg">Lock</button>
+                <button onclick="exportVault()" class="text-[10px] bg-brand-card border border-brand-border px-3 py-1 rounded">Export</button>
+                <button onclick="document.getElementById('import-file').click()" class="text-[10px] bg-brand-card border border-brand-border px-3 py-1 rounded">Import</button>
+                <input type="file" id="import-file" class="hidden" onchange="importVault(event)">
+                <button onclick="location.reload()" class="text-[10px] bg-red-900/30 text-red-400 border border-red-900 px-3 py-1 rounded">Lock</button>
             </div>
         </div>
-        <div id="settings-panel" class="hidden bg-brand-card border border-brand-primary/30 p-6 rounded-2xl mb-8">
-            <div class="grid grid-cols-2 gap-3 mb-4">
-                <input id="new-user" placeholder="New User" class="bg-brand-bg border p-2 rounded text-white text-sm">
-                <input id="new-pass" type="password" placeholder="New Pass" class="bg-brand-bg border p-2 rounded text-white text-sm">
-            </div>
-            <button onclick="updateAccount()" class="w-full bg-slate-800 py-2 rounded-lg font-bold text-xs">Sync Changes</button>
+
+        <div class="flex gap-2 mb-6 overflow-x-auto pb-2" id="filter-chips">
+            <button onclick="setFilter('All')" class="category-chip bg-brand-primary text-xs px-4 py-1.5 rounded-full font-bold">All</button>
+            <button onclick="setFilter('Personal')" class="category-chip bg-brand-card border border-brand-border text-xs px-4 py-1.5 rounded-full">Personal</button>
+            <button onclick="setFilter('Work')" class="category-chip bg-brand-card border border-brand-border text-xs px-4 py-1.5 rounded-full">Work</button>
+            <button onclick="setFilter('Finance')" class="category-chip bg-brand-card border border-brand-border text-xs px-4 py-1.5 rounded-full">Finance</button>
+            <button onclick="setFilter('Social')" class="category-chip bg-brand-card border border-brand-border text-xs px-4 py-1.5 rounded-full">Social</button>
         </div>
-        <input id="search" oninput="loadVault()" placeholder="Search..." class="w-full bg-brand-card border border-brand-border p-3 rounded-xl mb-6 outline-none text-white">
+
+        <input id="search" oninput="loadVault()" placeholder="Search domain or username..." class="w-full bg-brand-card border border-brand-border p-4 rounded-xl mb-6 outline-none text-white focus:border-brand-primary">
+        
         <div class="bg-brand-card border border-brand-border p-6 rounded-2xl mb-8">
             <div class="grid grid-cols-2 gap-3 mb-3">
-                <input id="dom" placeholder="Domain" class="bg-brand-bg border p-2 rounded text-sm text-white">
-                <input id="usr" placeholder="User" class="bg-brand-bg border p-2 rounded text-sm text-white">
+                <input id="dom" placeholder="Domain" class="bg-brand-bg border border-brand-border p-2 rounded text-sm text-white">
+                <input id="usr" placeholder="Username" class="bg-brand-bg border border-brand-border p-2 rounded text-sm text-white">
             </div>
-            <input id="pwd" placeholder="Pass" class="w-full bg-brand-bg border p-2 rounded mb-4 text-sm text-white">
-            <button onclick="saveEntry()" class="w-full bg-brand-primary font-bold py-2 rounded-lg">Add Entry</button>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <input id="pwd" placeholder="Password" class="bg-brand-bg border border-brand-border p-2 rounded text-sm text-white">
+                <select id="cat" class="bg-brand-bg border border-brand-border p-2 rounded text-sm text-white outline-none">
+                    <option value="Personal">Personal</option>
+                    <option value="Work">Work</option>
+                    <option value="Finance">Finance</option>
+                    <option value="Social">Social</option>
+                </select>
+            </div>
+            <button onclick="saveEntry()" class="w-full bg-brand-primary font-bold py-2 rounded-lg hover:bg-blue-600">Save Securely</button>
         </div>
+
         <div id="vault-list" class="space-y-3"></div>
     </div>
+
     <script>
         let currentUser = "";
+        let currentFilter = "All";
+
         async function handleLogin() {
             const username = document.getElementById('auth-user').value;
             const password = document.getElementById('auth-pw').value;
@@ -132,46 +126,93 @@ Deno.serve(async (req: Request) => {
                 document.getElementById('vault-screen').classList.remove('hidden');
                 loadVault();
             } else {
-                document.getElementById('login-card').classList.add('shake');
-                document.getElementById('login-error').style.opacity = 1;
-                setTimeout(() => { document.getElementById('login-card').classList.remove('shake'); }, 400);
+                alert('Invalid Credentials');
             }
         }
-        function toggleLoginVisibility() {
-            const pw = document.getElementById('auth-pw');
-            pw.type = pw.type === 'password' ? 'text' : 'password';
-        }
-        async function updateAccount() {
-            const newUser = document.getElementById('new-user').value;
-            const newPassword = document.getElementById('new-pass').value;
-            await fetch('/update-account', { method: 'POST', body: JSON.stringify({ oldUser: currentUser, newUser, newPassword }) });
-            location.reload();
-        }
-        async function saveEntry() {
-            const entry = { domain: document.getElementById('dom').value, username: document.getElementById('usr').value, password: document.getElementById('pwd').value };
-            await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
+
+        function setFilter(cat) {
+            currentFilter = cat;
+            document.querySelectorAll('.category-chip').forEach(btn => {
+                btn.classList.remove('bg-brand-primary', 'font-bold');
+                btn.classList.add('bg-brand-card', 'border', 'border-brand-border');
+                if(btn.innerText === cat) {
+                    btn.classList.add('bg-brand-primary', 'font-bold');
+                    btn.classList.remove('bg-brand-card', 'border-brand-border');
+                }
+            });
             loadVault();
         }
+
+        async function saveEntry() {
+            const entry = { 
+                domain: document.getElementById('dom').value, 
+                username: document.getElementById('usr').value, 
+                password: document.getElementById('pwd').value,
+                category: document.getElementById('cat').value 
+            };
+            if(!entry.domain) return;
+            await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
+            document.getElementById('dom').value = ""; document.getElementById('usr').value = ""; document.getElementById('pwd').value = "";
+            loadVault();
+        }
+
         async function loadVault() {
             const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
             const data = await res.json();
             const q = document.getElementById('search').value.toLowerCase();
+            
+            document.getElementById('vault-count').innerText = data.length + ' saved keys';
+            
             const list = document.getElementById('vault-list');
             list.innerHTML = "";
-            data.filter(i => i.domain.toLowerCase().includes(q)).forEach(item => {
-                // REWRITTEN TO AVOID TEMPLATE LITERALS ENTIRELY
-                var row = '<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between"><div>';
-                row += '<div class="text-white font-bold">' + item.domain + '</div>';
+            
+            const filtered = data.filter(i => {
+                const matchesSearch = i.domain.toLowerCase().indexOf(q) !== -1 || i.username.toLowerCase().indexOf(q) !== -1;
+                const matchesCategory = currentFilter === 'All' || i.category === currentFilter;
+                return matchesSearch && matchesCategory;
+            });
+
+            filtered.forEach(item => {
+                let row = '<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between items-center">';
+                row += '<div><div class="flex items-center gap-2"><span class="text-white font-bold">' + item.domain + '</span>';
+                row += '<span class="text-[9px] bg-blue-900/30 text-blue-400 px-2 rounded">' + (item.category || 'Personal') + '</span></div>';
                 row += '<div class="text-gray-500 text-xs font-mono">' + item.username + '</div></div>';
-                row += '<button onclick="deleteEntry(\'' + item.domain + '\')" class="text-red-500 text-xs font-bold transition px-2">Delete</button></div>';
+                row += '<div class="flex gap-4"><button onclick="alert(\'Pass: \' + \'' + item.password + '\')" class="text-brand-primary text-xs">View</button>';
+                row += '<button onclick="deleteEntry(\'' + item.domain + '\')" class="text-red-500 text-xs">Delete</button></div></div>';
                 list.innerHTML += row;
             });
         }
+
         async function deleteEntry(domain) {
             await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
             loadVault();
         }
-        document.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleLogin(); });
+
+        async function exportVault() {
+            const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
+            const data = await res.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'vault_backup.json';
+            a.click();
+        }
+
+        async function importVault(event) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = JSON.parse(e.target.result);
+                for(const entry of data) {
+                    await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
+                }
+                loadVault();
+                alert('Import Complete');
+            };
+            reader.readAsText(file);
+        }
     </script>
 </body>
 </html>\`;
