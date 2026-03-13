@@ -1,69 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keychain | Kinetic Logic Labs</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Keychain | Kinetic Logic Labs</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
         .shake { animation: shake 0.15s ease-in-out 0s 2; }
-        
-        /* Warning Toast Animation */
-        .toast-pop { animation: slideUp 0.4s ease-out forwards; }
-        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .toast-pop { animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-bg { backdrop-filter: blur(12px); background: rgba(0,0,0,0.8); }
     </style>
 </head>
 <body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans overflow-x-hidden">
 
-    <div id="wrong-pw-toast" class="hidden fixed bottom-10 inset-x-0 flex justify-center z-[100]">
+    <!-- WRONG PASSWORD TOAST -->
+    <div id="toast-container" class="fixed bottom-10 inset-x-0 flex justify-center z-[100] hidden">
         <div class="toast-pop bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl font-black uppercase tracking-widest border border-red-400">
-            ⚠️ Authentication Failed: Wrong Password
+            ⚠️ Authentication Failed: Incorrect Password
         </div>
     </div>
 
+    <!-- AUTH SCREEN -->
     <div id="auth-container" class="w-full max-w-md mx-auto mt-20">
         <div class="text-center mb-10">
             <h1 class="text-4xl font-black text-white tracking-tight">Password Keychain</h1>
             <p class="text-blue-500 text-[10px] tracking-widest mt-2 uppercase font-black">By Kinetic Logic Labs</p>
         </div>
-        <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
+        
+        <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl transition-all">
             <div class="space-y-4">
-                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
-                
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500">
                 <div class="relative">
-                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
+                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500">
                     <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors">
                         <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                            <path id="eye-path-open" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            <path id="eye-path-slash" class="hidden" stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
                         </svg>
                     </button>
                 </div>
             </div>
-            <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95">ACCESS VAULT</button>
+            <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95 uppercase tracking-widest">Access Vault</button>
         </div>
+    </div>
+
+    <!-- VAULT SCREEN (HIDDEN INITIALLY) -->
+    <div id="vault-screen" class="hidden w-full max-w-6xl mx-auto">
+        <div class="flex justify-between items-end mb-10">
+            <div>
+                <p class="text-blue-500 text-[10px] tracking-widest uppercase font-black mb-1">Kinetic Logic Labs</p>
+                <h1 class="text-4xl font-black text-white tracking-tight">My Vault</h1>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="toggleSettings()" class="bg-[#171717] border border-[#262626] px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#212121]">Settings</button>
+                <button onclick="location.reload()" class="bg-red-950/30 text-red-500 border border-red-900/40 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest">Lock</button>
+            </div>
+        </div>
+
+        <!-- SETTINGS PANEL -->
+        <div id="settings-panel" class="hidden bg-[#171717] border border-white/5 p-8 rounded-[2rem] mb-10">
+            <div class="grid md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-blue-500 text-[10px] font-black uppercase mb-4 tracking-widest">Add New Standard User</h3>
+                    <div class="space-y-3">
+                        <input id="reg-user" placeholder="Username" class="w-full bg-black border border-white/5 p-4 rounded-xl text-sm outline-none">
+                        <input id="reg-pw" type="password" placeholder="Password" class="w-full bg-black border border-white/5 p-4 rounded-xl text-sm outline-none">
+                        <button onclick="adminCreateAccount()" class="w-full bg-blue-600 py-4 rounded-xl font-black text-xs uppercase tracking-widest">Create User</button>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-gray-500 text-[10px] font-black uppercase mb-4 tracking-widest">System Info</h3>
+                    <p class="text-xs text-gray-500">Connected to Supabase Edge Logic v1.2</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADD ENTRY FORM -->
+        <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-10 shadow-xl">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <input id="dom" placeholder="Domain (e.g. Google.com)" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
+                <input id="usr" placeholder="Username/Email" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
+                <input id="pwd" placeholder="Password" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
+                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer"></select>
+            </div>
+            <button onclick="saveEntry()" class="w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 transition-all text-xs tracking-widest uppercase">Save to Vault</button>
+        </div>
+
+        <div id="vault-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </div>
 
     <script>
         const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
+        let currentUser = "";
+        let currentCategories = ["Personal", "Work", "Finance", "Social"];
 
         function toggleVisibility(id) {
             const el = document.getElementById(id);
-            const icon = document.getElementById('eye-icon');
+            const pathOpen = document.getElementById('eye-path-open');
+            const pathSlash = document.getElementById('eye-path-slash');
+            
             if (el.type === 'password') {
                 el.type = 'text';
-                icon.style.opacity = "0.4"; // Visual cue for "open"
+                pathOpen.classList.add('hidden');
+                pathSlash.classList.remove('hidden');
             } else {
                 el.type = 'password';
-                icon.style.opacity = "1";
+                pathOpen.classList.remove('hidden');
+                pathSlash.classList.add('hidden');
             }
+        }
+
+        function triggerError() {
+            const card = document.getElementById('login-card');
+            const toast = document.getElementById('toast-container');
+            
+            card.classList.add('shake');
+            toast.classList.remove('hidden');
+            
+            setTimeout(() => {
+                card.classList.remove('shake');
+                toast.classList.add('hidden');
+            }, 3000);
         }
 
         async function handleLogin() {
             const u = document.getElementById('auth-user').value;
             const p = document.getElementById('auth-pw').value;
-            const card = document.getElementById('login-card');
-            const toast = document.getElementById('wrong-pw-toast');
+            const btn = document.getElementById('login-btn');
+
+            if(!u || !p) { triggerError(); return; }
+
+            btn.innerText = "VERIFYING...";
+            btn.disabled = true;
 
             try {
                 const res = await fetch(`${API_URL}/auth`, {
@@ -73,22 +144,92 @@
                 });
 
                 if (res.ok) {
-                    // Success logic
+                    const data = await res.json();
+                    currentUser = u;
+                    currentCategories = data.categories || currentCategories;
+                    renderCategories();
                     document.getElementById('auth-container').classList.add('hidden');
-                    // ... show vault
+                    document.getElementById('vault-screen').classList.remove('hidden');
+                    loadVault();
                 } else {
-                    // Shake and Show Bottom Warning
-                    card.classList.add('shake');
-                    toast.classList.remove('hidden');
-                    
-                    setTimeout(() => {
-                        card.classList.remove('shake');
-                        toast.classList.add('hidden');
-                    }, 3000);
+                    triggerError();
                 }
-            } catch (e) {
-                console.error("API Connection Error");
+            } catch (err) {
+                console.error("Login Error:", err);
+                triggerError();
+            } finally {
+                btn.innerText = "ACCESS VAULT";
+                btn.disabled = false;
             }
+        }
+
+        function renderCategories() {
+            const sel = document.getElementById('cat');
+            sel.innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
+
+        async function saveEntry() {
+            const entry = {
+                domain: document.getElementById('dom').value,
+                username: document.getElementById('usr').value,
+                password: document.getElementById('pwd').value,
+                category: document.getElementById('cat').value
+            };
+            if(!entry.domain) return;
+            await fetch(`${API_URL}/save`, { 
+                method: 'POST', 
+                body: JSON.stringify({ currentUser, entry }) 
+            });
+            ['dom', 'usr', 'pwd'].forEach(id => document.getElementById(id).value = "");
+            loadVault();
+        }
+
+        async function loadVault() {
+            const res = await fetch(`${API_URL}/list`, { 
+                method: 'POST', 
+                body: JSON.stringify({ currentUser }) 
+            });
+            const data = await res.json();
+            const list = document.getElementById('vault-list');
+            list.innerHTML = data.map(item => `
+                <div class="bg-[#171717] border border-white/5 p-6 rounded-3xl hover:border-blue-500/50 transition-all group">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="text-[10px] text-blue-500 font-black uppercase tracking-widest">${item.category}</div>
+                        <button onclick="deleteEntry('${item.domain}')" class="text-gray-700 hover:text-red-500 transition-colors">
+                             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                             </svg>
+                        </button>
+                    </div>
+                    <div class="text-xl font-black text-white mb-1">${item.domain}</div>
+                    <div class="text-sm text-gray-500 font-mono mb-4 truncate">${item.username}</div>
+                    <button onclick="navigator.clipboard.writeText('${item.password}')" class="w-full bg-[#0a0a0a] py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-colors">Copy Password</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteEntry(domain) {
+            if(!confirm("Delete this entry?")) return;
+            await fetch(`${API_URL}/delete`, { 
+                method: 'POST', 
+                body: JSON.stringify({ currentUser, domain }) 
+            });
+            loadVault();
+        }
+
+        function toggleSettings() {
+            document.getElementById('settings-panel').classList.toggle('hidden');
+        }
+
+        async function adminCreateAccount() {
+            const newU = document.getElementById('reg-user').value;
+            const newP = document.getElementById('reg-pw').value;
+            const res = await fetch(`${API_URL}/create-account`, {
+                method: 'POST',
+                body: JSON.stringify({ adminUser: currentUser, newUsername: newU, newPassword: newP })
+            });
+            if(res.ok) alert("Account Created!");
+            else alert("Error creating account.");
         }
     </script>
 </body>
