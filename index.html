@@ -306,13 +306,17 @@
 
         async function syncCategoriesToServer() {
             if(!currentUser) return;
+            showLoading(true);
             try {
-                await fetch(`${API_URL}/update-profile`, { 
+                const res = await fetch(`${API_URL}/update-profile`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ oldUsername: currentUser, newUsername: currentUser, newCategories: currentCategories }) 
                 });
-            } catch (e) {}
+                if(res.ok) showToast("Vault Schema Synchronized");
+            } catch (e) {
+                showToast("Schema sync failed", "error");
+            } finally { showLoading(false); }
         }
 
         // Modal Category Buttons
@@ -327,6 +331,7 @@
         }
 
         function setEditCategory(c) {
+            selectedEditCategory = c;
             renderCategoryButtons(c);
             checkForChanges();
         }
@@ -470,7 +475,6 @@
             document.getElementById(targetId).value = pass;
         }
 
-        // Admin RESTORATION
         async function loadAdminUserList() {
             try {
                 const res = await fetch(`${API_URL}/list-all-users`, { 
@@ -556,7 +560,6 @@
                     
                     renderSettingsCategories();
                     
-                    // RBAC Visibility Gating
                     if(userRole === 'admin') {
                         document.getElementById('admin-section').classList.remove('hidden');
                         document.getElementById('user-management-panel').classList.remove('hidden');
