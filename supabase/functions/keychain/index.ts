@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -7,10 +8,13 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS Pre-flight
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  // Initialize Supabase Client using internal environment variables
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
 
   const url = new URL(req.url);
   
@@ -18,56 +22,98 @@ serve(async (req) => {
     try {
       const body = await req.json();
 
-      // 1. Authentication
+      // 1. AUTHENTICATION
       if (url.pathname.endsWith("/auth")) {
-        if (body.username === "admin" && body.password === "password") {
+        const { data: user, error } = await supabase
+          .from('vault_users')
+          .select('*')
+          .eq('username', body.username)
+          .eq('password', body.password)
+          .single();
+
+        if (user && !error) {
           return new Response(JSON.stringify({ 
             success: true, 
-            role: "admin",
-            categories: ["Personal", "Work", "Finance", "Social"] 
+            role: user.role,
+            categories: user.categories 
           }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
+        
         return new Response(JSON.stringify({ error: "Invalid credentials" }), { 
           status: 401, 
           headers: { ...corsHeaders, "Content-Type": "application/json" } 
         });
       }
 
-      // 2. Update Profile (Username/Password)
+      // 2. UPDATE PROFILE
       if (url.pathname.endsWith("/update-profile")) {
-        // This stops the "Server Error". 
-        // Real database persistence would go here using Supabase client.
+        const { error } = await supabase
+          .from('vault_users')
+          .update({ username: body.newUsername, password: body.newPassword })
+          .eq('username', body.oldUsername);
+
+        if (error) throw error;
         return new Response(JSON.stringify({ success: true }), { 
           headers: { ...corsHeaders, "Content-Type": "application/json" } 
         });
       }
 
-      // 3. Create Account (Admin Only)
+      // 3. CREATE ACCOUNT (Admin Only)
       if (url.pathname.endsWith("/create-account")) {
-        return new Response(JSON.stringify({ success: true }), { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        });
+        // Verify requester is admin
+        const { data: admin } = await supabase
+          .from('vault_users')
+          .select('role')
+          .eq('username', body.adminUser)
+          .single();
+
+        if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
+
+        const { error } = await supabase
+          .from('vault_users')
+          .insert([{ username: body.newUsername, password: body.newPassword, role: 'user' }]);
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 4. Vault Listing
+      // 4. VAULT LISTING
       if (url.pathname.endsWith("/list")) {
-        return new Response(JSON.stringify([]), { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        });
+        const { data, error } = await supabase
+          .from('vault_entries')
+          .select('*')
+          .eq('owner', body.currentUser);
+
+        if (error) throw error;
+        return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // 5. Save Entry
+      // 5. SAVE ENTRY
       if (url.pathname.endsWith("/save")) {
-        return new Response(JSON.stringify({ success: true }), { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        });
+        const { error } = await supabase
+          .from('vault_entries')
+          .upsert([{ 
+            owner: body.currentUser, 
+            domain: body.entry.domain, 
+            username: body.entry.username, 
+            password: body.entry.password, 
+            category: body.entry.category 
+          }], { onConflict: 'owner,domain' }); // Note: unique constraint needed for domain-per-user
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 6. Delete Entry
+      // 6. DELETE ENTRY
       if (url.pathname.endsWith("/delete")) {
-        return new Response(JSON.stringify({ success: true }), { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
-        });
+        const { error } = await supabase
+          .from('vault_entries')
+          .delete()
+          .eq('owner', body.currentUser)
+          .eq('domain', body.domain);
+
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
     } catch (err) {
