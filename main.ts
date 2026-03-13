@@ -56,7 +56,7 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify(items));
   }
 
-  // --- THE UI ---
+  // --- THE UI (Using Backticks for Multi-line HTML) ---
   const html = `
     <!DOCTYPE html>
     <html lang="en">
@@ -87,7 +87,7 @@ Deno.serve(async (req: Request) => {
       <div id="auth-container" class="w-full max-w-md mt-20 transition-all duration-500">
         <div class="text-center mb-8">
           <h1 class="text-3xl font-bold text-white tracking-tight">Password Keychain</h1>
-          <p class="text-brand-accent text-sm font-medium uppercase tracking-widest mt-1">By Kinetic Logic Labs</p>
+          <p class="text-brand-accent text-sm font-medium uppercase tracking-widest mt-1 text-blue-400">By Kinetic Logic Labs</p>
         </div>
         <div id="login-card" class="bg-brand-card border border-brand-border p-8 rounded-2xl shadow-2xl">
           <h2 class="text-white font-bold mb-6 text-xl">Log In</h2>
@@ -100,12 +100,12 @@ Deno.serve(async (req: Request) => {
             </button>
           </div>
           
-          <button id="login-btn" onclick="handleLogin()" class="w-full bg-brand-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition duration-200">Access Vault</button>
+          <button id="login-btn" onclick="handleLogin()" class="w-full bg-brand-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition duration-200 shadow-lg">Access Vault</button>
           <p id="login-error" class="text-red-500 text-sm font-medium text-center mt-4 transition-opacity duration-300 opacity-0 pointer-events-none">Invalid Username or Password</p>
         </div>
       </div>
 
-      <div id="vault-screen" class="hidden w-full max-w-2xl">
+      <div id="vault-screen" class="hidden w-full max-w-2xl animate-in fade-in duration-500">
         <div class="flex justify-between items-center mb-8">
           <div>
             <h1 class="text-2xl font-bold text-white">My Vault</h1>
@@ -117,11 +117,11 @@ Deno.serve(async (req: Request) => {
           </div>
         </div>
 
-        <div id="settings-panel" class="hidden bg-brand-card border border-brand-primary/30 p-6 rounded-2xl mb-8">
+        <div id="settings-panel" class="hidden bg-brand-card border border-brand-primary/30 p-6 rounded-2xl mb-8 shadow-inner">
           <h3 class="text-white font-bold mb-4">Account Settings</h3>
           <div class="grid grid-cols-2 gap-3 mb-4">
-            <input id="new-username" placeholder="New Username" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white">
-            <input id="new-password" type="password" placeholder="New Password" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white">
+            <input id="new-username" placeholder="New Username" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white focus:border-brand-primary transition">
+            <input id="new-password" type="password" placeholder="New Password" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white focus:border-brand-primary transition">
           </div>
           <button onclick="updateAccount()" class="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg text-sm font-bold transition">Update & Re-login</button>
         </div>
@@ -135,7 +135,10 @@ Deno.serve(async (req: Request) => {
             <input id="dom" placeholder="Domain (google.com)" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white">
             <input id="usr" placeholder="Username" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white">
           </div>
-          <input id="pwd" placeholder="Password" class="w-full bg-brand-bg border border-brand-border p-2 rounded-lg mb-3 outline-none text-sm text-white">
+          <div class="flex gap-2 mb-3">
+            <input id="pwd" placeholder="Password" class="flex-grow bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm text-white">
+            <button onclick="generatePassword()" class="bg-slate-800 hover:bg-slate-700 text-xs text-brand-accent px-3 py-1 rounded-lg border border-brand-border transition">Generate</button>
+          </div>
           <textarea id="nts" placeholder="Notes..." class="w-full bg-brand-bg border border-brand-border p-2 rounded-lg mb-4 outline-none text-sm text-white" rows="2"></textarea>
           <button onclick="saveEntry()" class="w-full bg-brand-primary hover:bg-blue-600 font-bold py-2 rounded-lg transition text-sm">Add New Entry</button>
         </div>
@@ -148,8 +151,8 @@ Deno.serve(async (req: Request) => {
           <h3 id="modal-title" class="text-xl font-bold text-white mb-2"></h3>
           <p id="modal-desc" class="text-gray-400 text-sm mb-6"></p>
           <div class="flex gap-3">
-            <button onclick="closeModal()" class="flex-1 bg-brand-border py-2 rounded-lg font-bold text-sm">Cancel</button>
-            <button id="modal-confirm-btn" class="flex-1 bg-brand-primary py-2 rounded-lg font-bold text-sm">Confirm</button>
+            <button onclick="closeModal()" class="flex-1 bg-brand-border py-2 rounded-lg font-bold text-sm transition hover:bg-gray-800">Cancel</button>
+            <button id="modal-confirm-btn" class="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded-lg font-bold text-sm transition">Delete</button>
           </div>
         </div>
       </div>
@@ -160,6 +163,7 @@ Deno.serve(async (req: Request) => {
         let currentUser = "";
         let vaultData = [];
 
+        // Support for Enter key
         document.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' && !document.getElementById('auth-container').classList.contains('hidden')) {
             handleLogin();
@@ -178,11 +182,30 @@ Deno.serve(async (req: Request) => {
           }
         }
 
+        function showToast(msg, isError = false) {
+          const toast = document.getElementById('toast');
+          toast.innerText = msg;
+          toast.style.borderColor = isError ? '#ef4444' : '#3b82f6';
+          toast.classList.remove('translate-x-80', 'opacity-0');
+          setTimeout(() => toast.classList.add('translate-x-80', 'opacity-0'), 2500);
+        }
+
+        function generatePassword() {
+          const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+";
+          let retVal = "";
+          for (let i = 0; i < 16; ++i) {
+            retVal += charset.charAt(Math.floor(Math.random() * charset.length));
+          }
+          document.getElementById('pwd').value = retVal;
+          showToast("Strong Password Generated");
+        }
+
         async function handleLogin() {
           const card = document.getElementById('login-card');
           const errorMsg = document.getElementById('login-error');
           const username = document.getElementById('auth-user').value;
           const password = document.getElementById('auth-pw').value;
+          
           const res = await fetch('/auth', { method: 'POST', body: JSON.stringify({ username, password }) });
           if(res.ok) {
             currentUser = username;
@@ -222,10 +245,10 @@ Deno.serve(async (req: Request) => {
             password: document.getElementById('pwd').value,
             notes: document.getElementById('nts').value
           };
-          if(!entry.domain || !entry.password) return showToast("Required fields missing", true);
+          if(!entry.domain || !entry.password) return showToast("Domain and Password required", true);
           await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
           ['dom','usr','pwd','nts'].forEach(id => document.getElementById(id).value = '');
-          showToast("Entry Saved");
+          showToast("Entry Saved to Database");
           loadVault();
         }
 
@@ -243,10 +266,10 @@ Deno.serve(async (req: Request) => {
 
         function renderVault(data) {
           const list = document.getElementById('vault-list');
-          list.innerHTML = data.length ? "" : "<p class='text-center text-gray-600 mt-10'>Vault is empty</p>";
+          list.innerHTML = data.length ? "" : "<p class='text-center text-gray-600 mt-10 font-medium'>Vault is empty</p>";
           data.forEach(item => {
             list.innerHTML += \`
-              <div class="bg-brand-card border border-brand-border p-4 rounded-xl flex items-center gap-4 hover:border-brand-primary/50 transition group">
+              <div class="bg-brand-card border border-brand-border p-4 rounded-xl flex items-center gap-4 hover:border-brand-primary/50 transition group shadow hover:shadow-lg">
                 <img src="https://logo.clearbit.com/\${item.domain}" onerror="this.src='https://ui-avatars.com/api/?name=\${item.domain}&background=262626&color=fff'" class="w-10 h-10 rounded-lg">
                 <div class="flex-grow min-w-0">
                   <div class="text-white font-bold truncate">\${item.domain}</div>
@@ -263,27 +286,19 @@ Deno.serve(async (req: Request) => {
 
         function copyToClipboard(text) {
           navigator.clipboard.writeText(text);
-          showToast("Copied to Clipboard");
-        }
-
-        function showToast(msg, isError = false) {
-          const toast = document.getElementById('toast');
-          toast.innerText = msg;
-          toast.style.borderColor = isError ? '#ef4444' : '#3b82f6';
-          toast.classList.remove('translate-x-80', 'opacity-0');
-          setTimeout(() => toast.classList.add('translate-x-80', 'opacity-0'), 2000);
+          showToast("Password Copied!");
         }
 
         function confirmDelete(domain) {
           const modal = document.getElementById('custom-modal');
-          document.getElementById('modal-title').innerText = "Delete Entry?";
-          document.getElementById('modal-desc').innerText = "Permanently erase " + domain + "?";
+          document.getElementById('modal-title').innerText = "Confirm Deletion";
+          document.getElementById('modal-desc').innerText = "Delete entry for " + domain + "?";
           const btn = document.getElementById('modal-confirm-btn');
           modal.classList.remove('hidden');
           btn.onclick = async () => {
             await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
             closeModal();
-            showToast("Entry Deleted");
+            showToast("Entry Erased");
             loadVault();
           };
         }
