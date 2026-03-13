@@ -21,7 +21,7 @@ serve(async (req) => {
     try {
       const body = await req.json();
 
-      // 1. AUTHENTICATION
+      // 1. AUTHENTICATION (Uses vault_users)
       if (url.pathname.endsWith("/auth")) {
         const { data: user, error } = await supabase
           .from('vault_users')
@@ -37,10 +37,10 @@ serve(async (req) => {
             categories: user.categories 
           }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
-        return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: "Invalid credentials", details: error?.message }), { status: 401, headers: corsHeaders });
       }
 
-      // 2. SAVE/UPDATE ENTRY
+      // 2. SAVE/UPDATE ENTRY (Uses vault_entries)
       if (url.pathname.endsWith("/save")) {
         if (!body.currentUser || !body.entry || !body.entry.domain) {
           return new Response(JSON.stringify({ error: "Incomplete Payload", details: "User ID or Domain missing" }), { status: 400, headers: corsHeaders });
@@ -57,11 +57,13 @@ serve(async (req) => {
             updated_at: new Date().toISOString() 
           }], { onConflict: 'owner,domain' });
 
-        if (error) throw error;
+        if (error) {
+          return new Response(JSON.stringify({ error: "Database Error", details: `Check 'vault_entries' table: ${error.message}` }), { status: 500, headers: corsHeaders });
+        }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 3. VAULT LISTING
+      // 3. VAULT LISTING (Uses vault_entries)
       if (url.pathname.endsWith("/list")) {
         const { data, error } = await supabase
           .from('vault_entries')
@@ -69,7 +71,9 @@ serve(async (req) => {
           .eq('owner', body.currentUser)
           .order('domain', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          return new Response(JSON.stringify({ error: "Fetch Error", details: `Check 'vault_entries' table: ${error.message}` }), { status: 500, headers: corsHeaders });
+        }
         return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
