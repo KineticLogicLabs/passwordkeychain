@@ -40,6 +40,7 @@ Deno.serve(async (req: Request) => {
       }
 
       if (url.pathname === "/save") {
+        // Use domain as key, but store original casing in value
         await kv.set(["users", body.currentUser, "vault", body.entry.domain.toLowerCase()], body.entry);
         return new Response(JSON.stringify({ success: true }));
       }
@@ -69,22 +70,22 @@ Deno.serve(async (req: Request) => {
     <style>
         @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
         .shake { animation: shake 0.15s ease-in-out 0s 2; }
-        .modal-bg { backdrop-filter: blur(8px); background: rgba(0,0,0,0.8); }
-        .toast-pop { animation: popUp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        @keyframes popUp { from { transform: translate(-50%, 100px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+        .modal-bg { backdrop-filter: blur(12px); background: rgba(0,0,0,0.7); }
+        .toast-pop { animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
-<body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans">
+<body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans overflow-x-hidden">
     
-    <div id="toast-container" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] hidden">
-        <div class="toast-pop bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl font-bold border border-red-400">
+    <div id="toast-container" class="fixed bottom-10 inset-x-0 flex justify-center z-[100] pointer-events-none hidden">
+        <div class="toast-pop bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl font-bold border border-red-400 pointer-events-auto">
             Authentication Failed: Please check your credentials.
         </div>
     </div>
 
     <div id="detail-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-bg">
-        <div class="bg-[#171717] border border-[#262626] w-full max-w-lg rounded-3xl p-8 shadow-2xl relative">
-            <button onclick="closeModal()" class="absolute top-6 right-6 text-gray-500 hover:text-white text-xl">&times;</button>
+        <div class="bg-[#171717] border border-[#262626] w-full max-w-lg rounded-[2.5rem] p-8 shadow-2xl relative">
+            <button onclick="closeModal()" class="absolute top-8 right-8 text-gray-500 hover:text-white text-2xl">&times;</button>
             <div id="modal-content"></div>
         </div>
     </div>
@@ -94,7 +95,7 @@ Deno.serve(async (req: Request) => {
             <h1 class="text-4xl font-black text-white tracking-tight">Password Keychain</h1>
             <p class="text-blue-500 text-xs tracking-widest mt-2 uppercase font-bold">By Kinetic Logic Labs</p>
         </div>
-        <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl transition-all">
+        <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
             <div class="space-y-4">
                 <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
                 <div class="relative">
@@ -102,7 +103,7 @@ Deno.serve(async (req: Request) => {
                     <button onclick="togglePw('auth-pw')" class="absolute right-4 top-4 text-[10px] text-gray-500 hover:text-white uppercase font-black tracking-widest">Show</button>
                 </div>
             </div>
-            <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95 shadow-lg shadow-blue-900/20">ACCESS VAULT</button>
+            <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95">ACCESS VAULT</button>
             <p id="error-msg" class="text-red-500 text-center text-sm font-bold mt-4 opacity-0 transition-opacity">Invalid Password</p>
         </div>
     </div>
@@ -126,38 +127,38 @@ Deno.serve(async (req: Request) => {
         <div id="settings-panel" class="hidden bg-[#171717] border border-blue-900/20 p-8 rounded-[2rem] mb-10">
             <div class="grid md:grid-cols-2 gap-10">
                 <div>
-                    <h3 class="text-white text-xs font-black mb-4 uppercase text-blue-500 tracking-widest">System User Registry</h3>
-                    <input id="new-acc-user" placeholder="New Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white mb-3 outline-none">
-                    <input id="new-acc-pw" type="password" placeholder="New Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white mb-6 outline-none">
-                    <button onclick="createNewAccount()" class="w-full bg-blue-600 py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-500">Register</button>
+                    <h3 class="text-white text-xs font-black mb-4 uppercase text-blue-500 tracking-widest">Registry</h3>
+                    <input id="new-acc-user" placeholder="New Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white mb-3">
+                    <input id="new-acc-pw" type="password" placeholder="New Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white mb-6">
+                    <button onclick="createNewAccount()" class="w-full bg-blue-600 py-4 rounded-xl text-xs font-black uppercase tracking-widest">Register</button>
                 </div>
                 <div>
-                    <h3 class="text-white text-xs font-black mb-4 uppercase text-blue-500 tracking-widest">Category Logic</h3>
-                    <textarea id="cat-editor" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white h-28 mb-3 outline-none" placeholder="Separate categories with commas..."></textarea>
-                    <button onclick="updateCategories()" class="w-full bg-[#262626] py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#333]">Update</button>
+                    <h3 class="text-white text-xs font-black mb-4 uppercase text-blue-500 tracking-widest">Categories</h3>
+                    <textarea id="cat-editor" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white h-28 mb-3 outline-none"></textarea>
+                    <button onclick="updateCategories()" class="w-full bg-[#262626] py-4 rounded-xl text-xs font-black uppercase tracking-widest">Update</button>
                 </div>
             </div>
         </div>
 
         <div class="flex flex-col md:flex-row gap-4 mb-8">
-            <input id="search" oninput="loadVault()" placeholder="Search vault entries..." class="flex-1 bg-[#171717] border border-[#262626] p-5 rounded-2xl outline-none text-white focus:border-blue-500 transition-all font-medium">
+            <input id="search" oninput="loadVault()" placeholder="Search vault entries..." class="flex-1 bg-[#171717] border border-[#262626] p-5 rounded-2xl outline-none text-white focus:border-blue-500 transition-all">
             <div class="bg-[#171717] border border-[#262626] rounded-2xl p-1.5 flex gap-1">
-                <button onclick="setView('list')" id="btn-list" class="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-tighter bg-blue-600 text-white transition-all">List</button>
-                <button onclick="setView('card')" id="btn-card" class="px-6 py-3 rounded-xl text-xs font-black uppercase tracking-tighter text-gray-500 hover:text-white transition-all">Cards</button>
+                <button onclick="setView('list')" id="btn-list" class="px-6 py-3 rounded-xl text-xs font-black uppercase bg-blue-600 text-white transition-all">List</button>
+                <button onclick="setView('card')" id="btn-card" class="px-6 py-3 rounded-xl text-xs font-black uppercase text-gray-500 hover:text-white transition-all">Cards</button>
             </div>
         </div>
 
-        <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-10 shadow-xl">
+        <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-10">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <input id="dom" placeholder="Website Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                <input id="usr" placeholder="Account Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
+                <input id="dom" placeholder="Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
+                <input id="usr" placeholder="Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
                 <div class="relative">
                     <input id="pwd" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                    <button onclick="generatePass()" class="absolute right-3 top-3 bg-blue-600/10 text-blue-500 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter hover:bg-blue-600/20">Generate</button>
+                    <button onclick="generatePass('pwd')" class="absolute right-3 top-3 bg-blue-600/10 text-blue-500 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter hover:bg-blue-600/20">Gen</button>
                 </div>
                 <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer"></select>
             </div>
-            <button onclick="saveEntry()" class="w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 transition-all text-sm tracking-widest shadow-lg shadow-blue-900/20">SAVE TO VAULT</button>
+            <button onclick="saveEntry()" class="w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 transition-all text-sm tracking-widest">SAVE TO VAULT</button>
         </div>
 
         <div id="vault-list" class="grid gap-4"></div>
@@ -168,16 +169,15 @@ Deno.serve(async (req: Request) => {
         let currentCategories = [];
         let viewMode = 'list';
         let fullVaultData = [];
+        let editingIndex = null;
 
         function showLoginError() {
             const card = document.getElementById('login-card');
             const msg = document.getElementById('error-msg');
             const toast = document.getElementById('toast-container');
-            
             card.classList.add('shake');
             msg.style.opacity = '1';
             toast.classList.remove('hidden');
-            
             setTimeout(() => {
                 card.classList.remove('shake');
                 msg.style.opacity = '0';
@@ -190,11 +190,11 @@ Deno.serve(async (req: Request) => {
             el.type = el.type === 'password' ? 'text' : 'password';
         }
 
-        function generatePass() {
+        function generatePass(targetId) {
             const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
             let p = Array.from(crypto.getRandomValues(new Uint32Array(16)))
                         .map(n => chars[n % chars.length]).join('');
-            document.getElementById('pwd').value = p;
+            document.getElementById(targetId).value = p;
         }
 
         function toggleSettings() {
@@ -242,7 +242,7 @@ Deno.serve(async (req: Request) => {
             if(res.ok) {
                 currentCategories = cats;
                 renderCategoryOptions();
-                alert("Categories Updated Successfully");
+                alert("Categories Updated");
             }
         }
 
@@ -277,27 +277,21 @@ Deno.serve(async (req: Request) => {
             document.getElementById('vault-count').innerText = filtered.length + ' entries total';
 
             filtered.forEach((item, index) => {
-                if(viewMode === 'list') {
-                    list.innerHTML += \`
+                const html = viewMode === 'list' ? \`
                     <div onclick="openItem(\${index})" class="bg-[#171717] border border-[#262626] p-6 rounded-2xl flex justify-between items-center hover:border-blue-500 cursor-pointer transition-all group">
                         <div class="flex items-center gap-6">
                             <div class="h-10 w-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 font-black">\${item.domain[0].toUpperCase()}</div>
-                            <div>
-                                <span class="text-white font-bold text-lg">\${item.domain}</span>
-                                <div class="text-gray-500 text-xs font-mono tracking-tight">\${item.username}</div>
-                            </div>
+                            <div><span class="text-white font-bold text-lg">\${item.domain}</span><div class="text-gray-500 text-xs font-mono">\${item.username}</div></div>
                         </div>
                         <div class="text-[10px] text-blue-500 font-black uppercase bg-blue-600/5 px-3 py-1 rounded-lg">\${item.category}</div>
-                    </div>\`;
-                } else {
-                    list.innerHTML += \`
-                    <div onclick="openItem(\${index})" class="bg-[#171717] border border-[#262626] p-8 rounded-[2rem] cursor-pointer hover:border-blue-500 transition-all group relative overflow-hidden">
+                    </div>\` : \`
+                    <div onclick="openItem(\${index})" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] cursor-pointer hover:border-blue-500 transition-all group relative">
                         <div class="text-blue-500 text-[10px] font-black uppercase mb-4 tracking-widest">\${item.category}</div>
                         <div class="text-white font-black text-2xl mb-2 group-hover:text-blue-400">\${item.domain}</div>
-                        <div class="text-gray-500 text-sm font-mono truncate mb-4 opacity-60">\${item.username}</div>
-                        <div class="text-[10px] text-gray-600 font-bold uppercase group-hover:text-blue-500 transition-colors">Click for secure details &rarr;</div>
+                        <div class="text-gray-500 text-sm font-mono truncate opacity-60 mb-4">\${item.username}</div>
+                        <div class="text-[10px] text-gray-600 font-bold uppercase group-hover:text-blue-500 transition-colors">Details &rarr;</div>
                     </div>\`;
-                }
+                list.innerHTML += html;
             });
         }
 
@@ -310,43 +304,78 @@ Deno.serve(async (req: Request) => {
         }
 
         function openItem(index) {
+            editingIndex = index;
             const item = fullVaultData[index];
             const modal = document.getElementById('detail-modal');
             const content = document.getElementById('modal-content');
             
             content.innerHTML = \`
-                <div class="text-blue-500 text-xs font-black uppercase tracking-widest mb-2">\${item.category}</div>
-                <h2 class="text-4xl font-black text-white mb-8 tracking-tight">\${item.domain}</h2>
+                <div class="mb-8">
+                    <p class="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-1">Edit Entry</p>
+                    <input id="edit-dom" value="\${item.domain}" class="bg-transparent text-3xl font-black text-white w-full border-none outline-none focus:text-blue-400">
+                </div>
                 
-                <div class="space-y-6">
-                    <div onclick="copyText('\${item.username}', 'Username')" class="group cursor-pointer p-5 bg-[#0a0a0a] border border-[#262626] rounded-2xl hover:border-blue-500 transition-all">
-                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Username</p>
-                        <p class="text-white text-lg font-mono">\${item.username}</p>
+                <div class="space-y-4">
+                    <div class="p-4 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
+                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Username (Click to copy)</p>
+                        <div class="flex items-center gap-2">
+                            <input id="edit-usr" onclick="copyText(this.value, 'Username')" value="\${item.username}" class="bg-transparent text-white text-lg font-mono flex-1 outline-none">
+                        </div>
                     </div>
                     
-                    <div onclick="copyText('\${item.password}', 'Password')" class="group cursor-pointer p-5 bg-[#0a0a0a] border border-[#262626] rounded-2xl hover:border-blue-500 transition-all">
-                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Password</p>
-                        <p class="text-blue-400 text-2xl font-mono tracking-tighter">••••••••••••</p>
-                        <p class="text-[9px] text-blue-900 font-bold mt-2 group-hover:text-blue-500">CLICK TO COPY HIDDEN PASSWORD</p>
+                    <div class="p-4 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
+                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Password (Click to copy)</p>
+                        <div class="flex items-center gap-3">
+                            <input id="edit-pwd" onclick="copyText(this.value, 'Password')" type="password" value="\${item.password}" class="bg-transparent text-blue-400 text-xl font-mono flex-1 outline-none">
+                            <button onclick="togglePw('edit-pwd')" class="text-[10px] text-gray-600 font-bold hover:text-white uppercase tracking-tighter">Toggle</button>
+                            <button onclick="generatePass('edit-pwd')" class="text-[10px] text-blue-900 font-bold hover:text-blue-500 uppercase tracking-tighter">Gen</button>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
+                         <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Category</p>
+                         <select id="edit-cat" class="bg-transparent text-white text-sm outline-none w-full">
+                            \${currentCategories.map(c => \`<option value="\${c}" \${c === item.category ? 'selected' : ''}>\${c}</option>\`).join('')}
+                         </select>
                     </div>
                 </div>
 
-                <div id="copy-feedback" class="text-center text-green-500 text-xs font-bold mt-6 opacity-0 transition-opacity">Copied!</div>
+                <div id="copy-feedback" class="text-center text-green-500 text-[10px] font-bold mt-4 opacity-0 transition-opacity uppercase tracking-widest">Copied!</div>
 
-                <div class="mt-10 pt-6 border-t border-[#262626] flex justify-between items-center">
-                    <button onclick="deleteEntry('\${item.domain}')" class="text-red-500 text-xs font-black uppercase hover:text-red-400">Delete Entry</button>
-                    <p class="text-[10px] text-gray-600">Kinetic Logic Labs Encryption Standard</p>
+                <div class="mt-8 flex gap-3">
+                    <button onclick="updateVaultEntry()" class="flex-1 bg-blue-600 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-blue-500 transition-all">Save Changes</button>
+                    <button onclick="deleteEntry('\${item.domain}')" class="bg-red-950/30 text-red-500 px-6 rounded-xl text-xs font-bold uppercase hover:bg-red-600 hover:text-white transition-all">Delete</button>
                 </div>
             \`;
             modal.classList.remove('hidden');
         }
 
+        async function updateVaultEntry() {
+            const oldDomain = fullVaultData[editingIndex].domain;
+            const newEntry = {
+                domain: document.getElementById('edit-dom').value,
+                username: document.getElementById('edit-usr').value,
+                password: document.getElementById('edit-pwd').value,
+                category: document.getElementById('edit-cat').value
+            };
+
+            // If domain name changed, delete the old key first
+            if (oldDomain.toLowerCase() !== newEntry.domain.toLowerCase()) {
+                await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain: oldDomain }) });
+            }
+
+            await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry: newEntry }) });
+            closeModal();
+            loadVault();
+        }
+
         function closeModal() {
             document.getElementById('detail-modal').classList.add('hidden');
+            editingIndex = null;
         }
 
         async function deleteEntry(domain) {
-            if(!confirm("Are you sure you want to permanently delete this entry?")) return;
+            if(!confirm("Permanently delete?")) return;
             await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
             closeModal();
             loadVault();
@@ -356,7 +385,7 @@ Deno.serve(async (req: Request) => {
             const username = document.getElementById('new-acc-user').value;
             const password = document.getElementById('new-acc-pw').value;
             const res = await fetch('/create-account', { method: 'POST', body: JSON.stringify({ username, password }) });
-            if(res.ok) alert("Account Registered Successfully");
+            if(res.ok) alert("Registered!");
         }
 
         async function exportVault() {
@@ -365,7 +394,7 @@ Deno.serve(async (req: Request) => {
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = 'vault_export.json'; a.click();
+            a.href = url; a.download = 'vault.json'; a.click();
         }
 </script>
 </body>
