@@ -1,290 +1,222 @@
 const kv = await Deno.openKv();
 
-// --- ⚠️ SECURITY WARNING ---
-// Change this to your secret master password!
-// In a production app, we would use environment variables.
-const MASTER_PASSWORD = "ChangeMe123"; 
-
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
 
-  // --- API: Authentication Check ---
+  // --- API: SIGN UP ---
+  if (req.method === "POST" && url.pathname === "/signup") {
+    const { username, password } = await req.json();
+    const userCheck = await kv.get(["users", username]);
+    if (userCheck.value) return new Response("User exists", { status: 400 });
+    
+    await kv.set(["users", username], { password }); // In production, hash this!
+    return new Response(JSON.stringify({ success: true }));
+  }
+
+  // --- API: LOGIN ---
   if (req.method === "POST" && url.pathname === "/auth") {
-    const { password } = await req.json();
-    if (password === MASTER_PASSWORD) {
+    const { username, password } = await req.json();
+    const user = await kv.get(["users", username]);
+    if (user.value && user.value.password === password) {
       return new Response(JSON.stringify({ success: true }));
     }
-    return new Response(JSON.stringify({ success: false }), { status: 401 });
+    return new Response("Invalid credentials", { status: 401 });
   }
 
-  // --- API: Save/Update Entry ---
+  // --- API: SAVE ENTRY (User Specific) ---
   if (req.method === "POST" && url.pathname === "/save") {
-    const entry = await req.json(); // { domain, username, password, notes }
-    if (!entry.domain || !entry.password) return new Response("Missing fields", { status: 400 });
-    
-    // Save to KV using the domain as the key
-    await kv.set(["vault", entry.domain.toLowerCase().trim()], entry);
+    const { currentUser, entry } = await req.json();
+    await kv.set(["users", currentUser, "vault", entry.domain.toLowerCase()], entry);
     return new Response(JSON.stringify({ success: true }));
   }
 
-  // --- API: Delete Entry ---
+  // --- API: DELETE ENTRY ---
   if (req.method === "POST" && url.pathname === "/delete") {
-    const { domain } = await req.json();
-    await kv.delete(["vault", domain.toLowerCase().trim()]);
+    const { currentUser, domain } = await req.json();
+    await kv.delete(["users", currentUser, "vault", domain]);
     return new Response(JSON.stringify({ success: true }));
   }
 
-  // --- API: List All Entries ---
-  if (req.method === "GET" && url.pathname === "/list") {
+  // --- API: LIST ENTRIES ---
+  if (req.method === "POST" && url.pathname === "/list") {
+    const { currentUser } = await req.json();
     const items = [];
-    const entries = kv.list({ prefix: ["vault"] });
-    for await (const entry of entries) {
+    for await (const entry of kv.list({ prefix: ["users", currentUser, "vault"] })) {
       items.push(entry.value);
     }
     return new Response(JSON.stringify(items));
   }
 
-  // --- THE UI (HTML/Tailwind) ---
+  // --- UI ---
   const html = `
     <!DOCTYPE html>
-    <html lang="en" class="dark">
+    <html lang="en">
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Kinetic Logic Vault</title>
+      <title>Password Keychain | Kinetic Logic Labs</title>
       <script src="https://cdn.tailwindcss.com"></script>
       <script>
         tailwind.config = {
-          darkMode: 'class',
           theme: {
             extend: {
               colors: {
-                brand: {
-                  bg: '#0f172a',    // slate-900
-                  card: '#1e293b',  // slate-800
-                  border: '#334155',// slate-700
-                  text: '#f1f5f9',  // slate-100
-                  primary: '#4f46e5',// indigo-600
-                  hover: '#4338ca',  // indigo-700
-                  danger: '#ef4444', // red-500
-                }
+                brand: { bg: '#0a0a0a', card: '#171717', border: '#262626', primary: '#3b82f6', accent: '#60a5fa' }
               }
             }
           }
         }
       </script>
       <style>
-        /* Modern Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
-        .hidden { display: none !important; }
+        .modal-bg { background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); }
+        input:focus { border-color: #3b82f6 !important; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
       </style>
     </head>
-    <body class="bg-brand-bg text-brand-text font-sans antialiased min-h-screen p-4 md:p-8 flex flex-col items-center">
-      <div class="w-full max-w-2xl">
+    <body class="bg-brand-bg text-gray-200 min-h-screen flex flex-col items-center p-6">
+
+      <div id="auth-container" class="w-full max-w-md mt-20">
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-white tracking-tight">Password Keychain</h1>
+          <p class="text-brand-accent text-sm font-medium uppercase tracking-widest mt-1">By Kinetic Logic Labs</p>
+        </div>
         
-        <div id="login-screen" class="bg-brand-card p-8 rounded-2xl border border-brand-border shadow-2xl flex flex-col items-center gap-6 mt-16">
-          <h1 class="text-3xl font-extrabold tracking-tight text-white">Kinetic Logic Labs</h1>
-          <p class="text-slate-400 text-sm text-center">Secure Password Keychain</p>
-          <input type="password" id="master-pw" placeholder="Enter Master Password" 
-            class="w-full bg-brand-bg p-3 rounded-lg border border-brand-border text-white placeholder:text-slate-500 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition">
-          <button onclick="login()" 
-            class="w-full bg-brand-primary hover:bg-brand-hover text-white font-semibold p-3 rounded-lg transition duration-150">
-            Unlock Vault
+        <div class="bg-brand-card border border-brand-border p-8 rounded-2xl shadow-2xl">
+          <div class="flex gap-4 mb-6 border-b border-brand-border pb-4">
+            <button id="tab-login" onclick="switchAuth('login')" class="text-white font-bold opacity-100 transition">Log In</button>
+            <button id="tab-signup" onclick="switchAuth('signup')" class="text-gray-500 font-bold opacity-50 hover:opacity-100 transition">Sign Up</button>
+          </div>
+          
+          <input id="auth-user" placeholder="Username" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-3 outline-none transition">
+          <input id="auth-pw" type="password" placeholder="Master Password" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-6 outline-none transition">
+          
+          <button id="auth-btn" onclick="handleAuth()" class="w-full bg-brand-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition shadow-lg shadow-blue-900/20">
+            Access Vault
           </button>
         </div>
+      </div>
 
-        <div id="vault-screen" class="hidden flex flex-col gap-8">
-          
-          <div class="flex items-center justify-between gap-4 p-4 bg-brand-card rounded-xl border border-brand-border">
-            <h2 class="text-2xl font-bold text-white">Your Vault</h2>
-            <button onclick="location.reload()" class="bg-slate-700 hover:bg-slate-600 text-sm font-medium text-white px-4 py-2 rounded-lg transition">
-              Log Out
-            </button>
+      <div id="vault-screen" class="hidden w-full max-w-2xl">
+        <div class="flex justify-between items-center mb-8">
+          <div>
+            <h1 class="text-2xl font-bold text-white">My Vault</h1>
+            <p id="user-display" class="text-sm text-gray-500"></p>
           </div>
+          <button onclick="location.reload()" class="text-xs bg-brand-card border border-brand-border px-4 py-2 rounded-lg hover:bg-brand-border transition">Lock Vault</button>
+        </div>
 
-          <div class="bg-brand-card p-6 rounded-2xl border border-brand-border shadow-xl">
-            <h3 class="text-xl font-semibold text-white mb-6">Add New Credential</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input id="domain" placeholder="Domain (e.g., github.com)" class="w-full bg-brand-bg p-3 rounded-lg border border-brand-border text-white placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none">
-              <input id="username" placeholder="Username / Email" class="w-full bg-brand-bg p-3 rounded-lg border border-brand-border text-white placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none">
-              <input id="password" type="text" placeholder="Password" class="w-full bg-brand-bg p-3 rounded-lg border border-brand-border text-white placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none col-span-1 md:col-span-2">
-              <textarea id="notes" placeholder="Notes (recovery codes, etc.)" rows="3" class="w-full bg-brand-bg p-3 rounded-lg border border-brand-border text-white placeholder:text-slate-500 focus:ring-2 focus:ring-indigo-500 outline-none col-span-1 md:col-span-2"></textarea>
-            </div>
-            <button onclick="saveEntry()" class="w-full bg-brand-primary hover:bg-brand-hover text-white font-semibold p-3 rounded-lg transition duration-150 mt-6">
-              Save to Keychain
-            </button>
+        <div class="bg-brand-card border border-brand-border p-6 rounded-2xl mb-8">
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <input id="dom" placeholder="Domain (google.com)" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm">
+            <input id="usr" placeholder="Username" class="bg-brand-bg border border-brand-border p-2 rounded-lg outline-none text-sm">
           </div>
+          <input id="pwd" placeholder="Password" class="w-full bg-brand-bg border border-brand-border p-2 rounded-lg mb-3 outline-none text-sm">
+          <textarea id="nts" placeholder="Recovery codes or notes..." class="w-full bg-brand-bg border border-brand-border p-2 rounded-lg mb-4 outline-none text-sm" rows="2"></textarea>
+          <button onclick="saveEntry()" class="w-full bg-brand-primary hover:bg-blue-600 font-bold py-2 rounded-lg transition text-sm">Add New Entry</button>
+        </div>
 
-          <div class="flex gap-3 justify-center">
-            <button onclick="exportData()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium px-4 py-2 rounded-lg border border-brand-border flex items-center gap-2 transition">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-              Export JSON
-            </button>
-            <button onclick="document.getElementById('importFile').click()" class="bg-slate-800 hover:bg-slate-700 text-xs text-slate-300 font-medium px-4 py-2 rounded-lg border border-brand-border flex items-center gap-2 transition">
-              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9a2.25 2.25 0 002.25 2.25h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15M9 12l3 3m0 0l3-3m-3 3V2.25"></path></svg>
-              Import JSON
-            </button>
-            <input type="file" id="importFile" class="hidden" onchange="importData(event)">
+        <div id="vault-list" class="space-y-3"></div>
+      </div>
+
+      <div id="delete-modal" class="hidden fixed inset-0 modal-bg flex items-center justify-center z-50 p-4">
+        <div class="bg-brand-card border border-brand-border p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+          <div class="w-16 h-16 bg-red-900/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
           </div>
-
-          <div id="vault-list" class="flex flex-col gap-4 mb-16">
-            <p class="text-center text-slate-500 py-10">Syncing with database...</p>
+          <h3 class="text-xl font-bold text-white mb-2">Delete Entry?</h3>
+          <p class="text-gray-400 text-sm mb-6">This action cannot be undone. Your credentials for <span id="modal-site-name" class="text-white font-bold"></span> will be permanently erased.</p>
+          <div class="flex gap-3">
+            <button onclick="closeModal()" class="flex-1 bg-brand-border py-2 rounded-lg font-bold text-sm">Cancel</button>
+            <button id="confirm-delete-btn" class="flex-1 bg-red-600 hover:bg-red-700 py-2 rounded-lg font-bold text-sm">Delete</button>
           </div>
         </div>
       </div>
 
-      <script>
-        let isAuthed = false;
+      <div id="toast" class="fixed bottom-10 bg-brand-primary text-white px-6 py-3 rounded-full font-bold shadow-xl transform translate-y-20 transition duration-300 opacity-0 pointer-events-none">Copied to Clipboard!</div>
 
-        async function login() {
-          const password = document.getElementById('master-pw').value;
-          const res = await fetch('/auth', { method: 'POST', body: JSON.stringify({ password }) });
-          if (res.ok) {
-            isAuthed = true;
-            document.getElementById('login-screen').classList.add('hidden');
+      <script>
+        let currentUser = "";
+        let authMode = "login";
+
+        function switchAuth(mode) {
+          authMode = mode;
+          document.getElementById('tab-login').style.opacity = mode === 'login' ? '1' : '0.5';
+          document.getElementById('tab-signup').style.opacity = mode === 'signup' ? '1' : '0.5';
+          document.getElementById('auth-btn').innerText = mode === 'login' ? 'Access Vault' : 'Create Account';
+        }
+
+        async function handleAuth() {
+          const username = document.getElementById('auth-user').value;
+          const password = document.getElementById('auth-pw').value;
+          if(!username || !password) return alert("Enter credentials");
+
+          const endpoint = authMode === 'login' ? '/auth' : '/signup';
+          const res = await fetch(endpoint, { method: 'POST', body: JSON.stringify({ username, password }) });
+          
+          if(res.ok) {
+            currentUser = username;
+            document.getElementById('auth-container').classList.add('hidden');
             document.getElementById('vault-screen').classList.remove('hidden');
+            document.getElementById('user-display').innerText = "Logged in as " + username;
             loadVault();
           } else {
-            alert("Incorrect Master Password");
-            document.getElementById('master-pw').value = '';
+            alert(authMode === 'login' ? "Invalid Login" : "Username already taken");
           }
         }
 
-        // Add 'Enter' key support for login
-        document.getElementById('master-pw').addEventListener('keypress', function (e) {
-          if (e.key === 'Enter') login();
-        });
-
         async function saveEntry() {
-          const data = {
-            domain: document.getElementById('domain').value.toLowerCase().trim(),
-            username: document.getElementById('username').value.trim(),
-            password: document.getElementById('password').value,
-            notes: document.getElementById('notes').value
+          const entry = {
+            domain: document.getElementById('dom').value.trim(),
+            username: document.getElementById('usr').value.trim(),
+            password: document.getElementById('pwd').value,
+            notes: document.getElementById('nts').value
           };
-          if(!data.domain || !data.password) return alert("Domain and Password are required");
-          
-          await fetch('/save', { method: 'POST', body: JSON.stringify(data) });
-          // Clear inputs and reload list
-          document.getElementById('domain').value = '';
-          document.getElementById('username').value = '';
-          document.getElementById('password').value = '';
-          document.getElementById('notes').value = '';
+          await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
+          ['dom','usr','pwd','nts'].forEach(id => document.getElementById(id).value = '');
           loadVault();
         }
 
         async function loadVault() {
-          if (!isAuthed) return;
-          const res = await fetch('/list');
+          const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
           const data = await res.json();
           const list = document.getElementById('vault-list');
+          list.innerHTML = data.length ? "" : "<p class='text-center text-gray-600 mt-10'>Vault is empty</p>";
           
-          if (data.length === 0) {
-            list.innerHTML = \`<p class="text-center text-slate-500 bg-brand-card p-10 rounded-xl border border-brand-border">Vault is empty.</p>\`;
-            return;
-          }
-
-          list.innerHTML = "";
-          // Sort alphabetically by domain
-          data.sort((a, b) => a.domain.localeCompare(b.domain));
-
-          data.forEach((item, index) => {
-            const logoUrl = \`https://logo.clearbit.com/\${item.domain}\`;
-            // Unique IDs for password visibility toggling
-            const pwId = \`pw-\${index}\`;
-            const toggleId = \`toggle-\${index}\`;
-
+          data.forEach(item => {
             list.innerHTML += \`
-              <div class="bg-brand-card p-5 rounded-xl border border-brand-border flex items-start gap-4 shadow hover:border-slate-600 transition duration-150">
-                <div class="w-12 h-12 rounded-lg bg-slate-700 flex items-center justify-center overflow-hidden border border-brand-border mt-1 flex-shrink-0">
-                  <img src="\${logoUrl}" onerror="this.src='https://ui-avatars.com/api/?name=\${item.domain}&background=334155&color=fff'" alt="\${item.domain} logo" class="w-10 h-10 rounded-md">
-                </div>
-                <div class="flex-grow">
-                  <div class="text-lg font-semibold text-white truncate">\${item.domain}</div>
-                  <div class="text-sm text-indigo-400 font-medium truncate">\${item.username || 'No username'}</div>
-                  
-                  <div class="flex items-center gap-2 mt-2 bg-brand-bg p-2 rounded-lg border border-brand-border">
-                    <input type="password" id="\${pwId}" value="\${item.password}" readonly class="bg-transparent text-slate-100 text-sm font-mono w-full outline-none">
-                    <button id="\${toggleId}" onclick="togglePassword('\${pwId}', '\${toggleId}')" class="text-xs text-slate-400 hover:text-white font-medium px-2 py-1 bg-slate-700 rounded transition">
-                      Show
-                    </button>
+              <div class="bg-brand-card border border-brand-border p-4 rounded-xl flex items-center gap-4 hover:border-brand-primary transition group">
+                <img src="https://logo.clearbit.com/\${item.domain}" onerror="this.src='https://ui-avatars.com/api/?name=\${item.domain}&background=262626&color=fff'" class="w-10 h-10 rounded-lg">
+                <div class="flex-grow min-w-0">
+                  <div class="text-white font-bold truncate">\${item.domain}</div>
+                  <div class="text-gray-500 text-xs truncate">\${item.username}</div>
+                  <div onclick="copyToClipboard('\${item.password}')" class="mt-1 text-xs font-mono text-brand-accent cursor-pointer hover:text-white transition truncate">
+                    •••••••• <span class="text-[10px] ml-2 opacity-0 group-hover:opacity-100 bg-brand-border px-1 rounded">Click to Copy</span>
                   </div>
-
-                  \${item.notes ? \`<div class="text-xs text-slate-400 bg-slate-900 p-3 mt-3 rounded-md border border-brand-border whitespace-pre-wrap">\${item.notes}</div>\` : ''}
                 </div>
-                <button onclick="deleteEntry('\${item.domain}')" class="text-xs text-brand-danger hover:text-red-400 font-bold px-2 py-1 mt-1 transition">
-                  Delete
-                </button>
+                <button onclick="openDeleteModal('\${item.domain}')" class="opacity-0 group-hover:opacity-100 text-xs text-red-500 font-bold p-2 transition">Delete</button>
               </div>
             \`;
           });
         }
 
-        // Feature: Toggle Password Visibility
-        function togglePassword(pwId, toggleId) {
-          const pwInput = document.getElementById(pwId);
-          const toggleBtn = document.getElementById(toggleId);
-          if (pwInput.type === "password") {
-            pwInput.type = "text";
-            toggleBtn.textContent = "Hide";
-          } else {
-            pwInput.type = "password";
-            toggleBtn.textContent = "Show";
-          }
+        function copyToClipboard(text) {
+          navigator.clipboard.writeText(text);
+          const toast = document.getElementById('toast');
+          toast.classList.remove('translate-y-20', 'opacity-0');
+          setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 2000);
         }
 
-        async function deleteEntry(domain) {
-          if(!confirm(\`Delete credentials for \${domain}?\`)) return;
-          await fetch('/delete', { method: 'POST', body: JSON.stringify({ domain }) });
-          loadVault();
-        }
-
-        // Feature: Export to JSON file
-        async function exportData() {
-          const res = await fetch('/list');
-          const data = await res.json();
-          if (data.length === 0) return alert("Nothing to export.");
-          
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = \`kinetic_logic_vault_\${new Date().toISOString().slice(0,10)}.json\`;
-          a.click();
-          URL.revokeObjectURL(url); // Clean up memory
-        }
-
-        // Feature: Import from JSON file
-        async function importData(event) {
-          const file = event.target.files[0];
-          if (!file) return;
-          if (!confirm("This will add all entries from the JSON file to your current vault. Continue?")) return;
-          
-          const reader = new FileReader();
-          reader.onload = async (e) => {
-            try {
-              const data = JSON.parse(e.target.result);
-              if (!Array.isArray(data)) throw new Error("Invalid JSON format (must be an array)");
-              
-              // Import each item individually
-              for (const item of data) {
-                if (item.domain && item.password) {
-                  await fetch('/save', { method: 'POST', body: JSON.stringify(item) });
-                }
-              }
-              alert(\`Successfully processed \${data.length} entries. Reloading vault...\`);
-              loadVault();
-            } catch (err) {
-              alert("Error importing file: " + err.message);
-            }
+        function openDeleteModal(domain) {
+          document.getElementById('modal-site-name').innerText = domain;
+          document.getElementById('delete-modal').classList.remove('hidden');
+          document.getElementById('confirm-delete-btn').onclick = async () => {
+            await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
+            closeModal();
+            loadVault();
           };
-          reader.readAsText(file);
-          // Clear input so you can re-upload the same file if needed
-          event.target.value = '';
         }
+
+        function closeModal() { document.getElementById('delete-modal').classList.add('hidden'); }
       </script>
     </body>
     </html>
