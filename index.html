@@ -1,0 +1,12 @@
+<script>
+    const API_URL = "https://[YOUR_PROJECT_ID].supabase.co/functions/v1/keychain";
+
+    async function handleLogin() {
+        // Change your fetch calls to use the full API_URL
+        const res = await fetch(`${API_URL}/auth`, { 
+            method: 'POST', 
+            body: JSON.stringify({ username: userInp.value, password: passInp.value }) 
+        });
+        // ... rest of your original code
+    }
+</script>
