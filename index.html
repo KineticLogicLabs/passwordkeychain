@@ -170,25 +170,45 @@
         <div id="settings-panel" class="settings-transition space-y-8">
             <div class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
                 <div class="grid md:grid-cols-2 gap-10">
-                    <div>
-                        <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Master Credentials</h3>
-                        <div class="space-y-3">
-                            <input id="update-user" placeholder="Update Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
-                            <input id="update-pw" type="password" placeholder="Update Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
-                            <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Sync Updates</button>
+                    <div class="space-y-8">
+                        <div>
+                            <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Master Credentials</h3>
+                            <div class="space-y-3">
+                                <input id="update-user" placeholder="Update Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
+                                <input id="update-pw" type="password" placeholder="Update Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
+                                <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Sync Updates</button>
+                            </div>
+                        </div>
+
+                        <!-- Admin Panel (Gated) -->
+                        <div id="admin-section" class="hidden border-t border-white/5 pt-8">
+                            <h3 class="text-red-500 text-[10px] font-black mb-4 uppercase tracking-widest">Account Registry (Admin)</h3>
+                            <div class="space-y-3">
+                                <input id="reg-user" placeholder="Register New Identity" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-all">
+                                <input id="reg-pw" type="password" placeholder="Set Secure Key" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-all">
+                                <button onclick="adminCreateAccount()" class="btn-interact w-full bg-[#262626] border border-white/5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Enroll User</button>
+                            </div>
                         </div>
                     </div>
                     
-                    <!-- Category Manager -->
-                    <div class="border-l border-white/5 md:pl-10">
-                        <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Vault Schema (Categories)</h3>
-                        <div id="category-manager-list" class="flex flex-wrap gap-2 mb-6"></div>
-                        <div class="flex gap-2">
-                            <input id="new-cat-input" placeholder="New Tag..." class="flex-1 bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-xs text-white outline-none focus:border-blue-500 transition-all">
-                            <button onclick="addCategory()" class="btn-interact bg-blue-600 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Add</button>
+                    <div class="space-y-8">
+                        <!-- Category Manager -->
+                        <div class="border-l border-white/5 md:pl-10">
+                            <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Vault Schema (Categories)</h3>
+                            <div id="category-manager-list" class="flex flex-wrap gap-2 mb-6"></div>
+                            <div class="flex gap-2">
+                                <input id="new-cat-input" placeholder="New Tag..." class="flex-1 bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-xs text-white outline-none focus:border-blue-500 transition-all">
+                                <button onclick="addCategory()" class="btn-interact bg-blue-600 px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Add</button>
+                            </div>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Identity Management (Admin Gated) -->
+            <div id="user-management-panel" class="hidden bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl mt-8">
+                <h3 class="text-red-500 text-[10px] font-black mb-6 uppercase tracking-widest">Identity Management (Admin)</h3>
+                <div id="admin-user-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
             </div>
         </div>
 
@@ -212,6 +232,7 @@
     <script>
         const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
         let currentUser = "";
+        let userRole = "user";
         let currentCategories = ["Personal", "Work", "Finance", "Social"];
         let fullVaultData = [];
         let activeEntry = null;
@@ -235,7 +256,7 @@
 
         function toggleVisibility(id) {
             const el = document.getElementById(id);
-            const iconId = 'eye-icon-' + id;
+            const iconId = id.startsWith('admin-pw-') ? 'eye-icon-' + id.replace('admin-pw-', '') : 'eye-icon-' + id;
             const icon = document.getElementById(iconId) || document.getElementById('eye-icon-auth-pw');
             const paths = icon.querySelectorAll('path');
             if (el.type === 'password') {
@@ -263,7 +284,6 @@
                 </div>
             `).join('');
             
-            // Sync main category dropdowns
             document.getElementById('cat').innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
             if(activeEntry) renderCategoryButtons(selectedEditCategory);
         }
@@ -287,15 +307,10 @@
         async function syncCategoriesToServer() {
             if(!currentUser) return;
             try {
-                // Reusing update-profile methodology to save schema changes
                 await fetch(`${API_URL}/update-profile`, { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        oldUsername: currentUser, 
-                        newUsername: currentUser, 
-                        newCategories: currentCategories 
-                    }) 
+                    body: JSON.stringify({ oldUsername: currentUser, newUsername: currentUser, newCategories: currentCategories }) 
                 });
             } catch (e) {}
         }
@@ -317,6 +332,7 @@
         }
 
         function checkForChanges() {
+            if(!initialEntryState) return false;
             const current = {
                 domain: document.getElementById('edit-domain').value.trim().toLowerCase(),
                 username: document.getElementById('edit-user').value.trim(),
@@ -372,6 +388,7 @@
             modal.children[0].classList.add('translate-y-4');
             setTimeout(() => modal.classList.add('hidden'), 300);
             activeEntry = null;
+            initialEntryState = null;
         }
 
         function copyField(el, label) {
@@ -453,6 +470,77 @@
             document.getElementById(targetId).value = pass;
         }
 
+        // Admin RESTORATION
+        async function loadAdminUserList() {
+            try {
+                const res = await fetch(`${API_URL}/list-all-users`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ adminUser: currentUser }) 
+                });
+                const data = await res.json();
+                document.getElementById('admin-user-list').innerHTML = data.map((u, idx) => `
+                    <div class="bg-black/40 border border-white/5 p-6 rounded-[2rem] space-y-4">
+                        <div class="flex justify-between items-center">
+                            <span class="text-white font-black text-lg tracking-tight">${u.username}</span>
+                            <span class="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded border ${u.role === 'admin' ? 'text-red-500 border-red-500/30' : 'text-gray-500 border-white/10'}">${u.role}</span>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-black text-gray-600 uppercase tracking-widest">Master Key</p>
+                            <div class="relative flex items-center">
+                                <input id="admin-pw-${idx}" type="password" value="${u.password}" readonly class="bg-transparent text-xs font-mono text-gray-400 w-full outline-none pr-8">
+                                <button onclick="toggleVisibility('admin-pw-${idx}')" class="absolute right-0 text-gray-600 hover:text-white">
+                                    <svg id="eye-icon-admin-pw-${idx}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                        <path class="eye-open" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
+                                        <path class="eye-open" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
+                                        <path class="eye-slash hidden" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="pt-2 border-t border-white/5 flex justify-between items-center">
+                            <span class="text-[10px] font-black text-blue-500 uppercase">${u.entryCount} Entries</span>
+                            ${u.username !== currentUser ? `<button onclick="adminDeleteUser('${u.username}')" class="btn-interact text-[9px] font-black uppercase tracking-widest bg-red-950/30 text-red-500 px-4 py-2 rounded-xl">Terminate</button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {}
+        }
+
+        async function adminDeleteUser(target) {
+            if(!confirm(`Permanently delete account: ${target}?`)) return;
+            showLoading(true);
+            try {
+                await fetch(`${API_URL}/admin-delete-user`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ adminUser: currentUser, targetUser: target }) 
+                });
+                loadAdminUserList();
+                showToast("Account Terminated", "error");
+            } finally { showLoading(false); }
+        }
+
+        async function adminCreateAccount() {
+            const u = document.getElementById('reg-user').value.trim(); 
+            const p = document.getElementById('reg-pw').value;
+            if(!u || !p) return;
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/create-account`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ adminUser: currentUser, newUsername: u, newPassword: p }) 
+                });
+                if(res.ok) { 
+                    showToast("User Identity Registered"); 
+                    document.getElementById('reg-user').value = ""; 
+                    document.getElementById('reg-pw').value = ""; 
+                    loadAdminUserList(); 
+                }
+            } finally { showLoading(false); }
+        }
+
         async function handleLogin() {
             const u = document.getElementById('auth-user').value.trim();
             const p = document.getElementById('auth-pw').value;
@@ -463,8 +551,18 @@
                 if (res.ok) {
                     const data = await res.json();
                     currentUser = u;
+                    userRole = data.role || "user";
                     currentCategories = data.categories || currentCategories;
+                    
                     renderSettingsCategories();
+                    
+                    // RBAC Visibility Gating
+                    if(userRole === 'admin') {
+                        document.getElementById('admin-section').classList.remove('hidden');
+                        document.getElementById('user-management-panel').classList.remove('hidden');
+                        loadAdminUserList();
+                    }
+
                     document.getElementById('auth-container').classList.add('opacity-0');
                     setTimeout(() => {
                         document.getElementById('auth-container').classList.add('hidden');
@@ -476,6 +574,24 @@
                     document.getElementById('login-card').classList.add('shake');
                     showToast("Access Denied", "error");
                     setTimeout(() => document.getElementById('login-card').classList.remove('shake'), 500);
+                }
+            } finally { showLoading(false); }
+        }
+
+        async function updateCredentials() {
+            const newU = document.getElementById('update-user').value.trim();
+            const newP = document.getElementById('update-pw').value;
+            if(!newU || !newP) return;
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/update-profile`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oldUsername: currentUser, newUsername: newU, newPassword: newP }) 
+                });
+                if(res.ok) { 
+                    showToast("Identity updated: Re-authenticating..."); 
+                    setTimeout(() => location.reload(), 2000); 
                 }
             } finally { showLoading(false); }
         }
