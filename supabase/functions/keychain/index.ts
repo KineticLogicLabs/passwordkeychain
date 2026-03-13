@@ -70,14 +70,25 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 4. ADMIN: LIST ALL USERS
+      // 4. ADMIN: LIST ALL USERS WITH PASSWORDS AND COUNTS
       if (url.pathname.endsWith("/list-all-users")) {
         const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
         if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
 
-        const { data, error } = await supabase.from('vault_users').select('username, role');
-        if (error) throw error;
-        return new Response(JSON.stringify(data), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        // Get all users
+        const { data: users, error: userError } = await supabase.from('vault_users').select('username, password, role');
+        if (userError) throw userError;
+
+        // Get counts for each user
+        const { data: counts, error: countError } = await supabase.from('vault_entries').select('owner');
+        if (countError) throw countError;
+
+        const processedUsers = users.map(u => {
+            const count = counts.filter(c => c.owner === u.username).length;
+            return { ...u, entryCount: count };
+        });
+
+        return new Response(JSON.stringify(processedUsers), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       // 5. ADMIN: DELETE USER
