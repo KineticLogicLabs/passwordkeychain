@@ -10,7 +10,6 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
-  // Initialize Supabase Client using internal environment variables
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -60,13 +59,7 @@ serve(async (req) => {
 
       // 3. CREATE ACCOUNT (Admin Only)
       if (url.pathname.endsWith("/create-account")) {
-        // Verify requester is admin
-        const { data: admin } = await supabase
-          .from('vault_users')
-          .select('role')
-          .eq('username', body.adminUser)
-          .single();
-
+        const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
         if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
 
         const { error } = await supabase
@@ -77,7 +70,29 @@ serve(async (req) => {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 4. VAULT LISTING
+      // 4. ADMIN: LIST ALL USERS
+      if (url.pathname.endsWith("/list-all-users")) {
+        const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
+        if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
+
+        const { data, error } = await supabase.from('vault_users').select('username, role');
+        if (error) throw error;
+        return new Response(JSON.stringify(data), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      // 5. ADMIN: DELETE USER
+      if (url.pathname.endsWith("/admin-delete-user")) {
+        const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
+        if (admin?.role !== 'admin') return new Response("Forbidden", { status: 403, headers: corsHeaders });
+        
+        if (body.targetUser === body.adminUser) return new Response("Cannot delete self", { status: 400, headers: corsHeaders });
+
+        const { error } = await supabase.from('vault_users').delete().eq('username', body.targetUser);
+        if (error) throw error;
+        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+      }
+
+      // 6. VAULT LISTING
       if (url.pathname.endsWith("/list")) {
         const { data, error } = await supabase
           .from('vault_entries')
@@ -88,7 +103,7 @@ serve(async (req) => {
         return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      // 5. SAVE ENTRY
+      // 7. SAVE ENTRY
       if (url.pathname.endsWith("/save")) {
         const { error } = await supabase
           .from('vault_entries')
@@ -98,13 +113,13 @@ serve(async (req) => {
             username: body.entry.username, 
             password: body.entry.password, 
             category: body.entry.category 
-          }], { onConflict: 'owner,domain' }); // Note: unique constraint needed for domain-per-user
+          }], { onConflict: 'owner,domain' });
 
         if (error) throw error;
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // 6. DELETE ENTRY
+      // 8. DELETE ENTRY
       if (url.pathname.endsWith("/delete")) {
         const { error } = await supabase
           .from('vault_entries')
