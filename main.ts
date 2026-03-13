@@ -15,7 +15,7 @@ Deno.serve(async (req: Request) => {
     if (url.pathname === "/auth") {
       const user = await kv.get(["users", body.username]);
       if (user.value && (user.value as any).password === body.password) {
-        return new Response(JSON.stringify({ success: true }));
+        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
       }
       return new Response("Unauthorized", { status: 401 });
     }
@@ -75,10 +75,20 @@ Deno.serve(async (req: Request) => {
                 <p id="vault-count" class="text-xs text-gray-500 font-mono">0 saved keys</p>
             </div>
             <div class="flex gap-2">
+                <button onclick="document.getElementById('settings-panel').classList.toggle('hidden')" class="text-[10px] bg-brand-card border border-brand-border px-3 py-1 rounded">Settings</button>
                 <button onclick="exportVault()" class="text-[10px] bg-brand-card border border-brand-border px-3 py-1 rounded">Export</button>
                 <button onclick="document.getElementById('import-file').click()" class="text-[10px] bg-brand-card border border-brand-border px-3 py-1 rounded">Import</button>
                 <input type="file" id="import-file" class="hidden" onchange="importVault(event)">
                 <button onclick="location.reload()" class="text-[10px] bg-red-900/30 text-red-400 border border-red-900 px-3 py-1 rounded">Lock</button>
+            </div>
+        </div>
+
+        <div id="settings-panel" class="hidden bg-brand-card border border-brand-primary/30 p-4 rounded-xl mb-6">
+            <h3 class="text-white text-xs font-bold mb-3 uppercase">Create New User</h3>
+            <div class="flex gap-2">
+                <input id="new-acc-user" placeholder="New Username" class="flex-1 bg-brand-bg border border-brand-border p-2 rounded text-xs text-white">
+                <input id="new-acc-pw" type="password" placeholder="New Password" class="flex-1 bg-brand-bg border border-brand-border p-2 rounded text-xs text-white">
+                <button onclick="createNewAccount()" class="bg-brand-primary px-4 py-2 rounded text-xs font-bold">Create</button>
             </div>
         </div>
 
@@ -110,16 +120,26 @@ Deno.serve(async (req: Request) => {
         </div>
 
         <div id="vault-list" class="space-y-3"></div>
+
+        <div id="deleted-section" class="mt-10 hidden">
+            <h3 class="text-gray-600 text-[10px] font-bold uppercase mb-4 tracking-tighter">Recently Deleted (Session Only)</h3>
+            <div id="deleted-list" class="space-y-2 opacity-50"></div>
+        </div>
     </div>
 
     <script>
         let currentUser = "";
         let currentFilter = "All";
+        let sessionDeleted = [];
 
         async function handleLogin() {
             const username = document.getElementById('auth-user').value;
             const password = document.getElementById('auth-pw').value;
-            const res = await fetch('/auth', { method: 'POST', body: JSON.stringify({ username, password }) });
+            const res = await fetch('/auth', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password }) 
+            });
             if(res.ok) {
                 currentUser = username;
                 document.getElementById('auth-container').classList.add('hidden');
@@ -127,6 +147,22 @@ Deno.serve(async (req: Request) => {
                 loadVault();
             } else {
                 alert('Invalid Credentials');
+            }
+        }
+
+        async function createNewAccount() {
+            const username = document.getElementById('new-acc-user').value;
+            const password = document.getElementById('new-acc-pw').value;
+            const res = await fetch('/create-account', { 
+                method: 'POST', 
+                body: JSON.stringify({ username, password }) 
+            });
+            if(res.ok) {
+                alert('Account created: ' + username);
+                document.getElementById('new-acc-user').value = "";
+                document.getElementById('new-acc-pw').value = "";
+            } else {
+                alert('Failed to create account or user exists');
             }
         }
 
@@ -162,7 +198,6 @@ Deno.serve(async (req: Request) => {
             const q = document.getElementById('search').value.toLowerCase();
             
             document.getElementById('vault-count').innerText = data.length + ' saved keys';
-            
             const list = document.getElementById('vault-list');
             list.innerHTML = "";
             
@@ -181,11 +216,39 @@ Deno.serve(async (req: Request) => {
                 row += '<button onclick="deleteEntry(\'' + item.domain + '\')" class="text-red-500 text-xs">Delete</button></div></div>';
                 list.innerHTML += row;
             });
+
+            // Update Recently Deleted
+            const delSec = document.getElementById('deleted-section');
+            const delList = document.getElementById('deleted-list');
+            delList.innerHTML = "";
+            if(sessionDeleted.length > 0) {
+                delSec.classList.remove('hidden');
+                sessionDeleted.forEach(item => {
+                    let dRow = '<div class="bg-brand-card border border-brand-border p-3 rounded-lg flex justify-between items-center">';
+                    dRow += '<span class="text-xs text-gray-400">' + item.domain + '</span>';
+                    dRow += '<button onclick="restoreEntry(\'' + item.domain + '\')" class="text-green-500 text-[10px] font-bold">Restore</button></div>';
+                    delList.innerHTML += dRow;
+                });
+            } else { delSec.classList.add('hidden'); }
         }
 
         async function deleteEntry(domain) {
+            const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
+            const data = await res.json();
+            const item = data.find(i => i.domain.toLowerCase() === domain.toLowerCase());
+            if(item) sessionDeleted.push(item);
+            
             await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
             loadVault();
+        }
+
+        async function restoreEntry(domain) {
+            const item = sessionDeleted.find(i => i.domain === domain);
+            if(item) {
+                await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry: item }) });
+                sessionDeleted = sessionDeleted.filter(i => i.domain !== domain);
+                loadVault();
+            }
         }
 
         async function exportVault() {
@@ -213,7 +276,7 @@ Deno.serve(async (req: Request) => {
             };
             reader.readAsText(file);
         }
-   </script>
+  </script>
 </body>
 </html>`; // <--- Add this backtick here to close the string
 
