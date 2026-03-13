@@ -13,84 +13,113 @@
 <body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans">
 
     <div id="auth-container" class="w-full max-w-md mx-auto mt-20">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-black text-white tracking-tight">Password Keychain</h1>
+            <p class="text-blue-500 text-[10px] tracking-widest mt-2 uppercase font-black">By Kinetic Logic Labs</p>
+        </div>
         <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
-            <h1 class="text-2xl font-black text-white mb-6 text-center">Unlock Vault</h1>
-            
             <div class="space-y-4">
                 <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none">
                 <div class="relative">
                     <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none">
                     <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white">
                         <svg id="eye-auth-pw" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            <path d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                         </svg>
                     </button>
                 </div>
-                <input id="reg-key" type="password" placeholder="Registration Key (New Users Only)" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none text-xs">
             </div>
-
-            <div class="flex gap-2 mt-8">
-                <button onclick="handleLogin()" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-2xl transition-all">LOGIN</button>
-                <button onclick="handleRegister()" class="flex-1 bg-[#262626] hover:bg-[#333] text-white font-black py-4 rounded-2xl transition-all">REGISTER</button>
-            </div>
+            <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95">ACCESS VAULT</button>
         </div>
     </div>
 
-    <div id="settings-panel" class="hidden bg-[#171717] border border-[#262626] p-8 rounded-[2rem] mt-10">
-        <h3 class="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-4">Profile Settings</h3>
-        <div class="grid gap-4">
-            <input id="new-profile-user" placeholder="Update Username" class="bg-black border border-[#262626] p-4 rounded-xl text-sm">
-            <input id="new-profile-pw" type="password" placeholder="Update Password" class="bg-black border border-[#262626] p-4 rounded-xl text-sm">
-            <button onclick="updateProfile()" class="bg-blue-600 py-4 rounded-xl font-black text-xs uppercase tracking-widest">Update Credentials</button>
+    <div id="vault-screen" class="hidden w-full max-w-5xl mx-auto">
+        <div class="flex justify-between items-end mb-10">
+            <h1 class="text-4xl font-black text-white tracking-tight">My Vault</h1>
+            <button onclick="toggleSettings()" class="bg-[#171717] border border-[#262626] px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#212121]">Settings</button>
         </div>
+
+        <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-10">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <input id="dom" placeholder="Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none">
+                <input id="usr" placeholder="Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none">
+                <input id="pwd" placeholder="Password" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none">
+                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-white outline-none cursor-pointer"></select>
+            </div>
+            <button onclick="saveEntry()" class="w-full bg-blue-600 font-black py-4 rounded-2xl hover:bg-blue-500 transition-all text-xs tracking-widest uppercase">Save Entry</button>
+        </div>
+
+        <div id="vault-list" class="grid gap-4"></div>
     </div>
 
     <script>
+        // UPDATE THIS WITH YOUR ACTUAL SUPABASE URL
         const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
+        let currentUser = "";
+        let currentCategories = [];
 
         function toggleVisibility(id) {
-            const input = document.getElementById(id);
-            const svg = document.getElementById('eye-' + id);
-            if (input.type === 'password') {
-                input.type = 'text';
-                // Add the "slash" to the eye via path change or opacity
-                svg.style.opacity = "0.5";
-            } else {
-                input.type = 'password';
-                svg.style.opacity = "1";
-            }
+            const el = document.getElementById(id);
+            el.type = el.type === 'password' ? 'text' : 'password';
         }
 
-        async function handleRegister() {
+        async function handleLogin() {
             const u = document.getElementById('auth-user').value;
             const p = document.getElementById('auth-pw').value;
-            const k = document.getElementById('reg-key').value;
-            
-            if(!k) { alert("Registration Key Required to prevent spam."); return; }
+            const card = document.getElementById('login-card');
 
-            const res = await fetch(`${API_URL}/create-account`, {
-                method: 'POST',
-                body: JSON.stringify({ username: u, password: p, regKey: k })
-            });
+            try {
+                const res = await fetch(`${API_URL}/auth`, {
+                    method: 'POST',
+                    body: JSON.stringify({ username: u, password: p })
+                });
 
-            if (res.ok) alert("Account Created! You can now Login.");
-            else alert(await res.text());
+                if (res.ok) {
+                    const data = await res.json();
+                    currentUser = u;
+                    currentCategories = data.categories;
+                    renderCategories();
+                    document.getElementById('auth-container').classList.add('hidden');
+                    document.getElementById('vault-screen').classList.remove('hidden');
+                    loadVault();
+                } else {
+                    card.classList.add('shake');
+                    setTimeout(() => card.classList.remove('shake'), 500);
+                }
+            } catch (e) {
+                alert("Connection error to Supabase.");
+            }
         }
 
-        async function updateProfile() {
-            const newU = document.getElementById('new-profile-user').value;
-            const newP = document.getElementById('new-profile-pw').value;
-            
-            const res = await fetch(`${API_URL}/update-profile`, {
-                method: 'POST',
-                body: JSON.stringify({ oldUsername: currentUser, newUsername: newU, newPassword: newP })
-            });
+        function renderCategories() {
+            const sel = document.getElementById('cat');
+            sel.innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+        }
 
-            if (res.ok) {
-                alert("Profile Updated! Please log in again.");
-                location.reload();
-            }
+        async function saveEntry() {
+            const entry = {
+                domain: document.getElementById('dom').value,
+                username: document.getElementById('usr').value,
+                password: document.getElementById('pwd').value,
+                category: document.getElementById('cat').value
+            };
+            await fetch(`${API_URL}/save`, { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
+            loadVault();
+        }
+
+        async function loadVault() {
+            const res = await fetch(`${API_URL}/list`, { method: 'POST', body: JSON.stringify({ currentUser }) });
+            const data = await res.json();
+            const list = document.getElementById('vault-list');
+            list.innerHTML = data.map(item => `
+                <div class="bg-[#171717] border border-[#262626] p-6 rounded-2xl flex justify-between items-center">
+                    <div>
+                        <div class="text-white font-bold">${item.domain}</div>
+                        <div class="text-gray-500 text-xs font-mono">${item.username}</div>
+                    </div>
+                    <div class="text-[10px] text-blue-500 font-black uppercase bg-blue-600/10 px-3 py-1 rounded-lg">${item.category}</div>
+                </div>
+            `).join('');
         }
     </script>
 </body>
