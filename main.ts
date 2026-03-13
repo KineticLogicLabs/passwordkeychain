@@ -56,7 +56,8 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify(items));
   }
 
-
+  // --- THE UI (Using Backticks for Multi-line HTML) ---
+  const html = `
     <!DOCTYPE html>
     <html lang="en">
     <head>
