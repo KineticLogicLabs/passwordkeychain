@@ -15,6 +15,29 @@
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0a0a0a; }
         ::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
+        
+        /* Smooth Panel Transition */
+        .settings-transition {
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        .settings-transition.show {
+            max-height: 2000px;
+            opacity: 1;
+            transform: translateY(0);
+            margin-bottom: 3rem;
+        }
+
+        /* Interactive Buttons */
+        .btn-interact {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-interact:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans selection:bg-blue-500/30">
@@ -32,17 +55,17 @@
         </div>
     </div>
 
-    <div id="auth-container" class="w-full max-w-md mx-auto mt-20 transition-all duration-500">
+    <div id="auth-container" class="w-full max-w-md mx-auto mt-20 transition-all duration-700">
         <div class="text-center mb-10">
             <h1 class="text-4xl font-black text-white tracking-tight">Password Keychain</h1>
             <p class="text-blue-500 text-[10px] tracking-widest mt-2 uppercase font-black">By Kinetic Logic Labs</p>
         </div>
         <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
             <div class="space-y-4">
-                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500">
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all duration-300">
                 <div class="relative">
-                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500">
-                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white">
+                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all duration-300">
+                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors duration-300">
                         <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
                             <path id="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -51,11 +74,11 @@
                     </button>
                 </div>
             </div>
-            <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95 uppercase tracking-widest text-xs">Access Vault</button>
+            <button id="login-btn" onclick="handleLogin()" class="btn-interact w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 uppercase tracking-widest text-xs">Access Vault</button>
         </div>
     </div>
 
-    <div id="vault-screen" class="hidden w-full max-w-6xl mx-auto opacity-0 transition-opacity duration-500">
+    <div id="vault-screen" class="hidden w-full max-w-6xl mx-auto opacity-0 transition-opacity duration-700">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
             <div>
                 <p class="text-blue-500 text-[10px] tracking-widest uppercase font-black mb-1">Kinetic Logic Labs</p>
@@ -63,37 +86,36 @@
                 <p id="vault-count" class="text-xs text-gray-500 font-mono mt-1">0 encrypted records</p>
             </div>
             <div class="flex gap-4">
-                <button onclick="toggleSettings()" class="bg-[#171717] border border-[#262626] px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#212121]">Settings</button>
-                <button onclick="location.reload()" class="bg-red-950/30 text-red-500 border border-red-900/40 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-900/40">Lock</button>
+                <button onclick="toggleSettings()" class="btn-interact bg-[#171717] border border-[#262626] px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#212121]">Settings</button>
+                <button onclick="location.reload()" class="btn-interact bg-red-950/30 text-red-500 border border-red-900/40 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-900/40">Lock</button>
             </div>
         </div>
 
-        <div id="settings-panel" class="hidden space-y-8 mb-12 animate-in fade-in slide-in-from-top-4 duration-500">
+        <div id="settings-panel" class="settings-transition space-y-8">
             <div class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
                 <div class="grid md:grid-cols-2 gap-10">
                     <div>
                         <h3 class="text-blue-500 text-[10px] font-black mb-4 uppercase tracking-widest">Update Credentials</h3>
                         <div class="space-y-3">
-                            <input id="update-user" placeholder="New Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <input id="update-pw" type="password" placeholder="New Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <button onclick="updateCredentials()" class="w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all">Apply Changes</button>
+                            <input id="update-user" placeholder="New Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                            <input id="update-pw" type="password" placeholder="New Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                            <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500">Apply Changes</button>
                         </div>
                     </div>
                     <div id="admin-section" class="hidden border-l border-white/5 md:pl-10">
                         <h3 class="text-red-500 text-[10px] font-black mb-4 uppercase tracking-widest">Admin: User Registration</h3>
                         <div class="space-y-3">
-                            <input id="reg-user" placeholder="Register Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <input id="reg-pw" type="password" placeholder="Register Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                            <button onclick="adminCreateAccount()" class="w-full bg-[#262626] border border-white/5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#333] transition-all">Add Standard User</button>
+                            <input id="reg-user" placeholder="Register Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-colors">
+                            <input id="reg-pw" type="password" placeholder="Register Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-colors">
+                            <button onclick="adminCreateAccount()" class="btn-interact w-full bg-[#262626] border border-white/5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#333]">Add Standard User</button>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- New User Management List (Admin Only) -->
             <div id="user-management-panel" class="hidden bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
                 <h3 class="text-red-500 text-[10px] font-black mb-6 uppercase tracking-widest">Admin: Manage All Accounts</h3>
-                <div id="admin-user-list" class="grid gap-4">
+                <div id="admin-user-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <!-- Loaded dynamically -->
                 </div>
             </div>
@@ -101,12 +123,12 @@
 
         <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-12 shadow-xl">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <input id="dom" placeholder="Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
-                <input id="usr" placeholder="Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
-                <input id="pwd" placeholder="Password" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500">
-                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer"></select>
+                <input id="dom" placeholder="Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                <input id="usr" placeholder="Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                <input id="pwd" placeholder="Password" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-colors">
+                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer hover:border-blue-500 transition-colors"></select>
             </div>
-            <button onclick="saveEntry()" class="w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 transition-all text-[11px] tracking-[0.2em] uppercase">Save to Vault</button>
+            <button onclick="saveEntry()" class="btn-interact w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 text-[11px] tracking-[0.2em] uppercase">Save to Vault</button>
         </div>
 
         <div id="vault-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
@@ -186,14 +208,14 @@
                 const data = await res.json();
                 countEl.innerText = data.length + ' encrypted records';
                 list.innerHTML = data.map(item => `
-                    <div class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all group relative">
+                    <div class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all duration-300 group relative">
                         <div class="flex justify-between items-start mb-6 text-[10px] font-black uppercase tracking-widest">
                             <div class="text-blue-500 bg-blue-500/10 px-3 py-1 rounded-lg">${item.category}</div>
-                            <button onclick="deleteEntry('${item.domain}')" class="text-gray-600 hover:text-red-500">Delete</button>
+                            <button onclick="deleteEntry('${item.domain}')" class="text-gray-600 hover:text-red-500 transition-colors">Delete</button>
                         </div>
                         <div class="text-2xl font-black text-white mb-1">${item.domain}</div>
                         <div class="text-sm text-gray-500 font-mono mb-6 truncate opacity-60">${item.username}</div>
-                        <button onclick="copyToClipboard('${item.password}')" class="w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600">Copy Password</button>
+                        <button onclick="copyToClipboard('${item.password}')" class="btn-interact w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600">Copy Password</button>
                     </div>
                 `).join('');
             } catch (err) {}
@@ -213,12 +235,21 @@
                 const res = await fetch(`${API_URL}/list-all-users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser }) });
                 const data = await res.json();
                 container.innerHTML = data.map(u => `
-                    <div class="flex justify-between items-center bg-black/40 border border-white/5 p-4 rounded-2xl">
-                        <div>
-                            <span class="text-white font-bold">${u.username}</span>
-                            <span class="text-[9px] font-black uppercase tracking-widest ml-2 ${u.role === 'admin' ? 'text-red-500' : 'text-gray-500'}">${u.role}</span>
+                    <div class="bg-black/40 border border-white/5 p-6 rounded-[2rem] space-y-4 hover:border-red-900/30 transition-all duration-300 group">
+                        <div class="flex justify-between items-center">
+                            <span class="text-white font-black text-lg tracking-tight">${u.username}</span>
+                            <span class="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded border ${u.role === 'admin' ? 'text-red-500 border-red-500/30 bg-red-500/10' : 'text-gray-500 border-white/10'}">${u.role}</span>
                         </div>
-                        ${u.username !== currentUser ? `<button onclick="adminDeleteUser('${u.username}')" class="text-[9px] font-black uppercase tracking-widest bg-red-950/30 text-red-500 px-3 py-1.5 rounded-lg border border-red-900/40 hover:bg-red-900 transition-colors">Terminate</button>` : ''}
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-black text-gray-600 uppercase tracking-widest">Master Password</p>
+                            <p class="text-xs font-mono text-gray-400 truncate">${u.password}</p>
+                        </div>
+                        <div class="pt-2 border-t border-white/5 flex justify-between items-center">
+                            <span class="text-[10px] font-black text-blue-500 uppercase">${u.entryCount} Entries</span>
+                            ${u.username !== currentUser ? `
+                                <button onclick="adminDeleteUser('${u.username}')" class="btn-interact text-[9px] font-black uppercase tracking-widest bg-red-950/30 text-red-500 px-4 py-2 rounded-xl border border-red-900/40 hover:bg-red-900 transition-all">Terminate</button>
+                            ` : ''}
+                        </div>
                     </div>
                 `).join('');
             } catch (err) {}
@@ -257,7 +288,10 @@
             document.body.removeChild(temp);
         }
 
-        function toggleSettings() { document.getElementById('settings-panel').classList.toggle('hidden'); }
+        function toggleSettings() { 
+            const panel = document.getElementById('settings-panel');
+            panel.classList.toggle('show');
+        }
     </script>
 </body>
 </html>
