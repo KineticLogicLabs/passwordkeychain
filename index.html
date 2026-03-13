@@ -402,7 +402,7 @@
             }
 
             showLoading(true);
-            const entry = { domain: dom.value.trim(), username: usr.value.trim(), password: pwd.value, category: cat.value };
+            const entry = { domain: dom.value.trim().toLowerCase(), username: usr.value.trim(), password: pwd.value, category: cat.value };
             
             try {
                 const res = await fetch(`${API_URL}/save`, { 
@@ -424,6 +424,7 @@
         }
 
         async function loadVault() {
+            if (!currentUser) return;
             const list = document.getElementById('vault-list');
             try {
                 const res = await fetch(`${API_URL}/list`, { 
@@ -431,20 +432,26 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ currentUser }) 
                 });
-                const data = await res.json();
-                fullVaultData = data;
-                document.getElementById('vault-count').innerText = data.length + ' encrypted records';
-                list.innerHTML = data.map((item, idx) => `
-                    <div onclick="openDetailModal(${idx})" class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all duration-300 group cursor-pointer relative btn-interact">
-                        <div class="flex justify-between items-start mb-6 text-[10px] font-black uppercase tracking-widest">
-                            <div class="text-blue-500 bg-blue-500/10 px-3 py-1 rounded-lg">${item.category}</div>
-                            <div class="text-gray-600 group-hover:text-blue-400 transition-colors uppercase font-black tracking-widest">Details</div>
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    fullVaultData = data;
+                    document.getElementById('vault-count').innerText = data.length + ' encrypted records';
+                    list.innerHTML = data.map((item, idx) => `
+                        <div onclick="openDetailModal(${idx})" class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all duration-300 group cursor-pointer relative btn-interact">
+                            <div class="flex justify-between items-start mb-6 text-[10px] font-black uppercase tracking-widest">
+                                <div class="text-blue-500 bg-blue-500/10 px-3 py-1 rounded-lg">${item.category}</div>
+                                <div class="text-gray-600 group-hover:text-blue-400 transition-colors uppercase font-black tracking-widest">Details</div>
+                            </div>
+                            <div class="text-2xl font-black text-white mb-1 tracking-tight">${item.domain}</div>
+                            <div class="text-sm text-gray-500 font-mono mb-6 truncate opacity-60">${item.username}</div>
+                            <div class="w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center group-hover:bg-blue-600 transition-colors">Modify Account</div>
                         </div>
-                        <div class="text-2xl font-black text-white mb-1 tracking-tight">${item.domain}</div>
-                        <div class="text-sm text-gray-500 font-mono mb-6 truncate opacity-60">${item.username}</div>
-                        <div class="w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center group-hover:bg-blue-600 transition-colors">Modify Account</div>
-                    </div>
-                `).join('');
+                    `).join('');
+                } else {
+                    const errData = await res.json().catch(() => ({}));
+                    showToast(errData.details || "Vault sync failure", "error");
+                }
             } catch (err) {
                 showToast("Vault connection error", "error");
             }
