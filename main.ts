@@ -15,7 +15,9 @@ Deno.serve(async (req: Request) => {
     if (url.pathname === "/auth") {
       const user = await kv.get(["users", body.username]);
       if (user.value && (user.value as any).password === body.password) {
-        return new Response(JSON.stringify({ success: true }), { headers: { "Content-Type": "application/json" } });
+        return new Response(JSON.stringify({ success: true }), { 
+          headers: { "Content-Type": "application/json" } 
+        });
       }
       return new Response("Unauthorized", { status: 401 });
     }
@@ -24,7 +26,9 @@ Deno.serve(async (req: Request) => {
       const items = [];
       const iter = kv.list({ prefix: ["users", body.currentUser, "vault"] });
       for await (const entry of iter) items.push(entry.value);
-      return new Response(JSON.stringify(items));
+      return new Response(JSON.stringify(items), { 
+        headers: { "Content-Type": "application/json" } 
+      });
     }
 
     if (url.pathname === "/save") {
@@ -62,9 +66,9 @@ Deno.serve(async (req: Request) => {
             <p class="text-blue-400 text-xs tracking-widest mt-1 uppercase">Kinetic Logic Labs</p>
         </div>
         <div id="login-card" class="bg-brand-card border border-brand-border p-8 rounded-2xl shadow-2xl">
-            <input id="auth-user" placeholder="Username" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-3 text-white outline-none focus:border-brand-primary">
+            <input id="auth-user" type="text" placeholder="Username" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-3 text-white outline-none focus:border-brand-primary">
             <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-brand-bg border border-brand-border p-3 rounded-lg mb-6 text-white outline-none focus:border-brand-primary">
-            <button onclick="handleLogin()" class="w-full bg-brand-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition">Access Vault</button>
+            <button id="login-btn" onclick="handleLogin()" class="w-full bg-brand-primary hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition disabled:opacity-50">Access Vault</button>
         </div>
     </div>
 
@@ -133,48 +137,60 @@ Deno.serve(async (req: Request) => {
         let sessionDeleted = [];
 
         async function handleLogin() {
-            const username = document.getElementById('auth-user').value;
-            const password = document.getElementById('auth-pw').value;
-            const res = await fetch('/auth', { 
-                method: 'POST', 
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password }) 
-            });
-            if(res.ok) {
-                currentUser = username;
-                document.getElementById('auth-container').classList.add('hidden');
-                document.getElementById('vault-screen').classList.remove('hidden');
-                loadVault();
-            } else {
-                alert('Invalid Credentials');
+            const userInp = document.getElementById('auth-user');
+            const passInp = document.getElementById('auth-pw');
+            const btn = document.getElementById('login-btn');
+            
+            if(!userInp.value || !passInp.value) return;
+
+            btn.disabled = true;
+            btn.innerText = "Authenticating...";
+
+            try {
+                const res = await fetch('/auth', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: userInp.value, password: passInp.value }) 
+                });
+                
+                if(res.ok) {
+                    currentUser = userInp.value;
+                    document.getElementById('auth-container').classList.add('hidden');
+                    document.getElementById('vault-screen').classList.remove('hidden');
+                    loadVault();
+                } else {
+                    alert('Invalid username or password');
+                    btn.disabled = false;
+                    btn.innerText = "Access Vault";
+                }
+            } catch (e) {
+                console.error(e);
+                btn.disabled = false;
+                btn.innerText = "Access Vault";
             }
         }
 
         async function createNewAccount() {
             const username = document.getElementById('new-acc-user').value;
             const password = document.getElementById('new-acc-pw').value;
+            if(!username) return;
             const res = await fetch('/create-account', { 
                 method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }) 
             });
             if(res.ok) {
                 alert('Account created: ' + username);
                 document.getElementById('new-acc-user').value = "";
                 document.getElementById('new-acc-pw').value = "";
-            } else {
-                alert('Failed to create account or user exists');
-            }
+            } else { alert('Failed to create account'); }
         }
 
         function setFilter(cat) {
             currentFilter = cat;
             document.querySelectorAll('.category-chip').forEach(btn => {
-                btn.classList.remove('bg-brand-primary', 'font-bold');
-                btn.classList.add('bg-brand-card', 'border', 'border-brand-border');
-                if(btn.innerText === cat) {
-                    btn.classList.add('bg-brand-primary', 'font-bold');
-                    btn.classList.remove('bg-brand-card', 'border-brand-border');
-                }
+                btn.className = 'category-chip bg-brand-card border border-brand-border text-xs px-4 py-1.5 rounded-full';
+                if(btn.innerText === cat) btn.className = 'category-chip bg-brand-primary text-xs px-4 py-1.5 rounded-full font-bold';
             });
             loadVault();
         }
@@ -187,13 +203,23 @@ Deno.serve(async (req: Request) => {
                 category: document.getElementById('cat').value 
             };
             if(!entry.domain) return;
-            await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
-            document.getElementById('dom').value = ""; document.getElementById('usr').value = ""; document.getElementById('pwd').value = "";
+            await fetch('/save', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentUser, entry }) 
+            });
+            document.getElementById('dom').value = ""; 
+            document.getElementById('usr').value = ""; 
+            document.getElementById('pwd').value = "";
             loadVault();
         }
 
         async function loadVault() {
-            const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
+            const res = await fetch('/list', { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentUser }) 
+            });
             const data = await res.json();
             const q = document.getElementById('search').value.toLowerCase();
             
@@ -217,7 +243,6 @@ Deno.serve(async (req: Request) => {
                 list.innerHTML += row;
             });
 
-            // Update Recently Deleted
             const delSec = document.getElementById('deleted-section');
             const delList = document.getElementById('deleted-list');
             delList.innerHTML = "";
@@ -233,50 +258,51 @@ Deno.serve(async (req: Request) => {
         }
 
         async function deleteEntry(domain) {
-            const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
+            const res = await fetch('/list', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ currentUser }) });
             const data = await res.json();
             const item = data.find(i => i.domain.toLowerCase() === domain.toLowerCase());
             if(item) sessionDeleted.push(item);
-            
-            await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
+            await fetch('/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ currentUser, domain }) });
             loadVault();
         }
 
         async function restoreEntry(domain) {
             const item = sessionDeleted.find(i => i.domain === domain);
             if(item) {
-                await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry: item }) });
+                await fetch('/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ currentUser, entry: item }) });
                 sessionDeleted = sessionDeleted.filter(i => i.domain !== domain);
                 loadVault();
             }
         }
 
         async function exportVault() {
-            const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
+            const res = await fetch('/list', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ currentUser }) });
             const data = await res.json();
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url;
-            a.download = 'vault_backup.json';
-            a.click();
+            a.href = url; a.download = 'vault_backup.json'; a.click();
         }
 
-        async function importVault(event) {
+        function importVault(event) {
             const file = event.target.files[0];
             if(!file) return;
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const data = JSON.parse(e.target.result);
                 for(const entry of data) {
-                    await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
+                    await fetch('/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ currentUser, entry }) });
                 }
                 loadVault();
                 alert('Import Complete');
             };
             reader.readAsText(file);
         }
-  </script>
+
+        document.addEventListener('keydown', (e) => { 
+            if (e.key === 'Enter' && currentUser === "") handleLogin(); 
+        });
+</script>
 </body>
 </html>`; // <--- Add this backtick here to close the string
 
