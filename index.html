@@ -20,12 +20,13 @@
         .btn-interact { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-interact:active { transform: scale(0.95); }
         
-        .copy-notice { animation: fadeOut 2s forwards; }
-        @keyframes fadeOut { 0% { opacity: 1; transform: translateY(0); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
-        
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0a0a0a; }
         ::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
+
+        .cat-btn { @apply px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all; }
+        .cat-btn-inactive { @apply border-white/5 bg-white/5 text-gray-500 hover:text-white hover:bg-white/10; }
+        .cat-btn-active { @apply border-blue-500 bg-blue-500/10 text-blue-500; }
     </style>
 </head>
 <body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans selection:bg-blue-500/30 overflow-x-hidden">
@@ -41,18 +42,18 @@
     <!-- Global Toast Notifications -->
     <div id="toast-container" class="fixed bottom-10 inset-x-0 flex flex-col items-center gap-2 z-[150] pointer-events-none"></div>
 
-    <!-- Detail Modal (Larger View) -->
+    <!-- Detail Modal -->
     <div id="detail-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 modal-bg opacity-0 pointer-events-none">
         <div class="bg-[#171717] border border-[#262626] w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative transform translate-y-4 transition-transform duration-300 overflow-y-auto max-h-[90vh]">
-            <button onclick="closeDetailModal()" class="absolute top-8 right-8 text-gray-500 hover:text-white text-2xl font-light transition-colors">Close</button>
+            <button onclick="closeDetailModal()" class="absolute top-8 right-8 text-gray-500 hover:text-white text-lg font-black uppercase tracking-widest transition-colors">Close</button>
             
             <div id="detail-modal-content">
-                <div class="mb-10 group relative">
+                <div class="mb-10 group">
                     <p class="text-blue-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Record Details</p>
-                    <div class="flex items-center gap-4">
-                        <input id="edit-domain" type="text" class="text-3xl font-black bg-transparent border-none outline-none text-white w-full focus:text-blue-400 transition-colors">
-                        <button onclick="copyField(document.getElementById('edit-domain'), 'Domain')" class="text-gray-600 hover:text-blue-500 transition-colors btn-interact">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <div class="flex items-center gap-3">
+                        <input id="edit-domain" type="text" oninput="checkForChanges()" class="text-3xl font-black bg-transparent border-none outline-none text-white w-full focus:text-blue-400 transition-colors">
+                        <button onclick="copyField(document.getElementById('edit-domain'), 'Domain')" class="text-gray-600 hover:text-white transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
                             </svg>
                         </button>
@@ -63,8 +64,8 @@
                     <div class="bg-black/40 border border-white/5 p-5 rounded-2xl relative">
                         <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Username</label>
                         <div class="flex items-center">
-                            <input id="edit-user" type="text" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm">
-                            <button onclick="copyField(document.getElementById('edit-user'), 'Username')" class="text-gray-600 hover:text-blue-500 transition-colors btn-interact ml-2">
+                            <input id="edit-user" type="text" oninput="checkForChanges()" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm">
+                            <button onclick="copyField(document.getElementById('edit-user'), 'Username')" class="text-gray-600 hover:text-white transition-colors ml-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
                                 </svg>
@@ -74,7 +75,7 @@
                     <div class="bg-black/40 border border-white/5 p-5 rounded-2xl relative">
                         <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Password</label>
                         <div class="flex items-center">
-                            <input id="edit-pass" type="password" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm">
+                            <input id="edit-pass" type="password" oninput="checkForChanges()" class="bg-transparent border-none outline-none text-white w-full font-mono text-sm">
                             <div class="flex items-center gap-3 ml-2">
                                 <button onclick="toggleVisibility('edit-pass')" class="text-gray-600 hover:text-white transition-colors">
                                     <svg id="eye-icon-edit-pass" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
@@ -83,7 +84,7 @@
                                         <path class="eye-slash hidden" stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
                                     </svg>
                                 </button>
-                                <button onclick="copyField(document.getElementById('edit-pass'), 'Password')" class="text-gray-600 hover:text-blue-500 transition-colors btn-interact">
+                                <button onclick="copyField(document.getElementById('edit-pass'), 'Password')" class="text-gray-600 hover:text-white transition-colors">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
                                     </svg>
@@ -91,21 +92,11 @@
                             </div>
                         </div>
                     </div>
-                    <div class="bg-black/40 border border-white/5 p-5 rounded-2xl flex justify-between items-center">
-                        <div class="flex-1">
-                            <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Category</label>
-                            <select id="edit-cat" class="bg-transparent border-none outline-none text-white w-full text-sm cursor-pointer"></select>
-                        </div>
-                        <button onclick="copyField(document.getElementById('edit-cat'), 'Category')" class="text-gray-600 hover:text-blue-500 transition-colors btn-interact ml-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="bg-black/40 border border-white/5 p-5 rounded-2xl opacity-60">
-                        <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-2">Security Status</label>
-                        <span class="text-[10px] font-black uppercase text-green-500 tracking-widest">End-to-End Encrypted</span>
-                    </div>
+                </div>
+
+                <div class="mb-10">
+                    <label class="text-[9px] font-black uppercase tracking-widest text-gray-600 block mb-4">Category Assignment</label>
+                    <div id="edit-cat-buttons" class="flex flex-wrap gap-3"></div>
                 </div>
 
                 <div class="grid grid-cols-2 gap-4 mb-10 border-t border-white/5 pt-6">
@@ -119,15 +110,15 @@
                     </div>
                 </div>
 
-                <div class="flex flex-col md:flex-row gap-4">
-                    <button onclick="updateEntryFromModal()" class="flex-1 bg-blue-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all btn-interact">Update Entry</button>
-                    <button onclick="confirmDeleteEntry()" class="bg-red-950/30 border border-red-900/30 text-red-500 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all btn-interact">Purge Record</button>
+                <div class="flex items-center gap-4">
+                    <button id="modal-action-btn" onclick="updateEntryFromModal()" class="flex-[3] bg-blue-600 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500 transition-all btn-interact">Close</button>
+                    <button onclick="confirmDeleteEntry()" class="flex-1 bg-red-950/20 border border-red-900/30 text-red-500 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all btn-interact">Delete</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Confirm Purge Modal -->
+    <!-- Confirm Modal -->
     <div id="confirm-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 modal-bg opacity-0 pointer-events-none">
         <div class="bg-[#171717] border border-red-900/30 w-full max-w-sm rounded-[2.5rem] p-8 text-center shadow-2xl">
             <h3 class="text-xl font-black text-white mb-2 tracking-tight">Are you sure?</h3>
@@ -139,7 +130,7 @@
         </div>
     </div>
 
-    <!-- Auth Screen -->
+    <!-- Auth -->
     <div id="auth-container" class="w-full max-w-md mx-auto mt-20 transition-all duration-700">
         <div class="text-center mb-10">
             <h1 class="text-4xl font-black text-white tracking-tight">Password Keychain</h1>
@@ -147,14 +138,14 @@
         </div>
         <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
             <div class="space-y-4">
-                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all duration-300">
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all">
                 <div class="relative">
-                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all duration-300">
-                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white transition-colors duration-300">
+                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-all">
+                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-4 text-gray-500 hover:text-white">
                         <svg id="eye-icon-auth-pw" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                            <path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                            <path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                            <path class="eye-slash hidden" stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
+                            <path class="eye-open" stroke-linecap="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                            <path class="eye-open" stroke-linecap="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                            <path class="eye-slash hidden" stroke-linecap="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" />
                         </svg>
                     </button>
                 </div>
@@ -163,7 +154,7 @@
         </div>
     </div>
 
-    <!-- Vault Screen -->
+    <!-- Vault -->
     <div id="vault-screen" class="hidden w-full max-w-6xl mx-auto opacity-0 transition-opacity duration-700">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
             <div>
@@ -172,10 +163,10 @@
                 <p id="vault-count" class="text-xs text-gray-500 font-mono mt-1">0 encrypted records</p>
             </div>
             <div class="flex gap-4">
-                <button onclick="exportVault()" class="btn-interact bg-[#171717] border border-[#262626] px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#212121]">Export</button>
-                <button onclick="document.getElementById('import-input').click()" class="btn-interact bg-[#171717] border border-[#262626] px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#212121]">Import</button>
-                <button onclick="toggleSettings()" class="btn-interact bg-[#171717] border border-[#262626] px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-[#212121]">Settings</button>
-                <button onclick="location.reload()" class="btn-interact bg-red-950/30 text-red-500 border border-red-900/40 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-900/40">Lock</button>
+                <button onclick="exportVault()" class="btn-interact bg-[#171717] border border-[#262626] px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">Export</button>
+                <button onclick="document.getElementById('import-input').click()" class="btn-interact bg-[#171717] border border-[#262626] px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">Import</button>
+                <button onclick="toggleSettings()" class="btn-interact bg-[#171717] border border-[#262626] px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">Settings</button>
+                <button onclick="location.reload()" class="btn-interact bg-red-950/20 text-red-500 border border-red-900/40 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">Lock</button>
                 <input type="file" id="import-input" class="hidden" accept=".json" onchange="importVault(event)">
             </div>
         </div>
@@ -188,38 +179,24 @@
                         <div class="space-y-3">
                             <input id="update-user" placeholder="Update Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
                             <input id="update-pw" type="password" placeholder="Update Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
-                            <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-500">Sync Updates</button>
-                        </div>
-                    </div>
-                    <div id="admin-section" class="hidden border-l border-white/5 md:pl-10">
-                        <h3 class="text-red-500 text-[10px] font-black mb-4 uppercase tracking-widest">Account Registry</h3>
-                        <div class="space-y-3">
-                            <input id="reg-user" placeholder="Register New Identity" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-all">
-                            <input id="reg-pw" type="password" placeholder="Set Secure Key" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-red-500 transition-all">
-                            <button onclick="adminCreateAccount()" class="btn-interact w-full bg-[#262626] border border-white/5 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[#333]">Enroll User</button>
+                            <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest">Sync Updates</button>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <div id="user-management-panel" class="hidden bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] shadow-2xl">
-                <h3 class="text-red-500 text-[10px] font-black mb-6 uppercase tracking-widest">Identity Management (Admin)</h3>
-                <div id="admin-user-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-            </div>
         </div>
 
-        <!-- Add Entry Console -->
         <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-12 shadow-xl">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <input id="dom" placeholder="Domain (Google.com)" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
                 <input id="usr" placeholder="Identifier" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
                 <div class="relative">
                     <input id="pwd" placeholder="Secret Key" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 pr-12 rounded-xl text-sm text-white outline-none focus:border-blue-500 transition-all">
-                    <button onclick="generatePass('pwd')" class="absolute right-3 top-3.5 text-[9px] font-black text-blue-500 hover:text-white uppercase tracking-widest">Gen</button>
+                    <button onclick="generatePass('pwd')" class="absolute right-3 top-3.5 text-[9px] font-black text-blue-500 uppercase tracking-widest">Gen</button>
                 </div>
-                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer hover:border-blue-500 transition-all"></select>
+                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none"></select>
             </div>
-            <button onclick="saveEntry()" class="btn-interact w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 text-[11px] tracking-[0.2em] uppercase">Commit to Vault</button>
+            <button onclick="saveEntry()" class="btn-interact w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 text-[11px] tracking-widest uppercase">Commit to Vault</button>
         </div>
 
         <div id="vault-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
@@ -228,24 +205,21 @@
     <script>
         const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
         let currentUser = "";
-        let userRole = "user";
         let currentCategories = ["Personal", "Work", "Finance", "Social"];
         let fullVaultData = [];
         let activeEntry = null;
+        let initialEntryState = null;
+        let selectedEditCategory = "";
 
         function showLoading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
         
         function showToast(msg, type = 'success') {
             const container = document.getElementById('toast-container');
-            
-            // Push out old notification
-            container.innerHTML = ''; 
-
+            container.innerHTML = '';
             const toast = document.createElement('div');
             toast.className = `toast-pop ${type === 'success' ? 'bg-blue-600 border-blue-400' : 'bg-red-600 border-red-400'} text-white px-8 py-4 rounded-2xl shadow-2xl font-black uppercase tracking-widest border pointer-events-auto mb-2 text-xs text-center`;
             toast.innerText = msg;
             container.appendChild(toast);
-            
             setTimeout(() => {
                 toast.style.opacity = '0';
                 setTimeout(() => toast.remove(), 500);
@@ -254,41 +228,75 @@
 
         function toggleVisibility(id) {
             const el = document.getElementById(id);
-            const iconId = id.startsWith('admin-pw-') ? 'eye-icon-' + id.replace('admin-pw-', '') : 'eye-icon-' + id;
+            const iconId = 'eye-icon-' + id;
             const icon = document.getElementById(iconId) || document.getElementById('eye-icon-auth-pw');
-            
-            const openPath = icon.querySelectorAll('.eye-open');
-            const slashPath = icon.querySelector('.eye-slash');
-            
+            const paths = icon.querySelectorAll('path');
             if (el.type === 'password') {
                 el.type = 'text';
-                openPath.forEach(p => p.classList.add('hidden'));
-                slashPath.classList.remove('hidden');
+                paths[0].classList.add('hidden'); paths[1].classList.add('hidden');
+                paths[2].classList.remove('hidden');
             } else {
                 el.type = 'password';
-                openPath.forEach(p => p.classList.remove('hidden'));
-                slashPath.classList.add('hidden');
+                paths[0].classList.remove('hidden'); paths[1].classList.remove('hidden');
+                paths[2].classList.add('hidden');
             }
+        }
+
+        function renderCategoryButtons(active) {
+            const container = document.getElementById('edit-cat-buttons');
+            selectedEditCategory = active;
+            container.innerHTML = currentCategories.map(c => `
+                <button onclick="setEditCategory('${c}')" class="cat-btn ${c === active ? 'cat-btn-active' : 'cat-btn-inactive'}">
+                    ${c}
+                </button>
+            `).join('');
+        }
+
+        function setEditCategory(c) {
+            renderCategoryButtons(c);
+            checkForChanges();
+        }
+
+        function checkForChanges() {
+            const current = {
+                domain: document.getElementById('edit-domain').value.trim().toLowerCase(),
+                username: document.getElementById('edit-user').value.trim(),
+                password: document.getElementById('edit-pass').value,
+                category: selectedEditCategory
+            };
+
+            const isChanged = current.domain !== initialEntryState.domain || 
+                              current.username !== initialEntryState.username || 
+                              current.password !== initialEntryState.password || 
+                              current.category !== initialEntryState.category;
+
+            const btn = document.getElementById('modal-action-btn');
+            btn.innerText = isChanged ? "Update Entry" : "Close";
+            btn.classList.toggle('bg-blue-600', isChanged);
+            btn.classList.toggle('bg-[#262626]', !isChanged);
+            return isChanged;
         }
 
         function openDetailModal(idx) {
             const entry = fullVaultData[idx];
             activeEntry = entry;
+            initialEntryState = {
+                domain: entry.domain,
+                username: entry.username,
+                password: entry.password,
+                category: entry.category
+            };
+
             document.getElementById('edit-domain').value = entry.domain;
             document.getElementById('edit-user').value = entry.username;
             document.getElementById('edit-pass').value = entry.password;
             document.getElementById('edit-pass').type = 'password'; 
-            
-            const modalEye = document.getElementById('eye-icon-edit-pass');
-            modalEye.querySelectorAll('.eye-open').forEach(p => p.classList.remove('hidden'));
-            modalEye.querySelector('.eye-slash').classList.add('hidden');
-
             document.getElementById('created-date').innerText = new Date(entry.created_at).toLocaleString();
             document.getElementById('modified-date').innerText = entry.updated_at ? new Date(entry.updated_at).toLocaleString() : 'Never';
             
-            const sel = document.getElementById('edit-cat');
-            sel.innerHTML = currentCategories.map(c => `<option value="${c}" ${c === entry.category ? 'selected' : ''}>${c}</option>`).join('');
-            
+            renderCategoryButtons(entry.category);
+            checkForChanges();
+
             const modal = document.getElementById('detail-modal');
             modal.classList.remove('hidden');
             setTimeout(() => {
@@ -310,24 +318,24 @@
         function copyField(el, label) {
             const val = el.value || el.innerText;
             navigator.clipboard.writeText(val);
-            showToast(`${label} synchronized to clipboard`);
+            showToast(`${label} Copied`);
         }
 
         async function updateEntryFromModal() {
-            if (!currentUser) return showToast("Identity Lost: Re-login", "error");
+            if (!checkForChanges()) {
+                closeDetailModal();
+                return;
+            }
+
+            if (!currentUser) return showToast("Session Lost", "error");
             
             const entry = {
                 domain: document.getElementById('edit-domain').value.trim().toLowerCase(),
                 username: document.getElementById('edit-user').value.trim(),
                 password: document.getElementById('edit-pass').value,
-                category: document.getElementById('edit-cat').value
+                category: selectedEditCategory
             };
             
-            if(!entry.domain || !entry.password) {
-                showToast("Domain and Password are required", "error");
-                return;
-            }
-
             showLoading(true);
             try {
                 const res = await fetch(`${API_URL}/save`, { 
@@ -340,11 +348,11 @@
                     closeDetailModal();
                     loadVault();
                 } else {
-                    const errData = await res.json().catch(() => ({}));
-                    showToast(errData.details || "Vault rejection: Check database", "error");
+                    const err = await res.json().catch(() => ({}));
+                    showToast(err.details || "Update failed", "error");
                 }
             } catch (e) {
-                showToast("Network synchronization failed", "error");
+                showToast("Connection failed", "error");
             } finally { showLoading(false); }
         }
 
@@ -364,7 +372,7 @@
                         body: JSON.stringify({ currentUser, domain: activeEntry.domain }) 
                     });
                     if(res.ok) {
-                        showToast("Record purged from vault", "error");
+                        showToast("Record Deleted", "error");
                         closeConfirmModal();
                         closeDetailModal();
                         loadVault();
@@ -396,14 +404,8 @@
                 if (res.ok) {
                     const data = await res.json();
                     currentUser = u;
-                    userRole = data.role || "user";
                     currentCategories = data.categories || currentCategories;
-                    renderCategories();
-                    if(userRole === 'admin') {
-                        document.getElementById('admin-section').classList.remove('hidden');
-                        document.getElementById('user-management-panel').classList.remove('hidden');
-                        loadAdminUserList();
-                    }
+                    document.getElementById('cat').innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
                     document.getElementById('auth-container').classList.add('opacity-0');
                     setTimeout(() => {
                         document.getElementById('auth-container').classList.add('hidden');
@@ -419,61 +421,35 @@
             } finally { showLoading(false); }
         }
 
-        function renderCategories() {
-            document.getElementById('cat').innerHTML = currentCategories.map(c => `<option value="${c}">${c}</option>`).join('');
-        }
-
         async function saveEntry() {
-            if (!currentUser) return showToast("Identity Lost: Re-login", "error");
-
+            if (!currentUser) return;
             const dom = document.getElementById('dom');
             const usr = document.getElementById('usr');
             const pwd = document.getElementById('pwd');
             const cat = document.getElementById('cat');
-            
-            if(!dom.value.trim() || !pwd.value) {
-                showToast("Domain and Password are required", "error");
-                return;
-            }
-
+            if(!dom.value.trim() || !pwd.value) return showToast("Domain/Pass required", "error");
             showLoading(true);
             const entry = { domain: dom.value.trim().toLowerCase(), username: usr.value.trim(), password: pwd.value, category: cat.value };
-            
             try {
-                const res = await fetch(`${API_URL}/save`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ currentUser, entry }) 
-                });
+                const res = await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) });
                 if(res.ok) {
-                    showToast("Record successfully committed");
+                    showToast("Committed to Vault");
                     dom.value = ""; usr.value = ""; pwd.value = "";
                     loadVault();
-                } else {
-                    const errData = await res.json().catch(() => ({}));
-                    showToast(errData.details || "Vault rejection: Check database", "error");
                 }
-            } catch (e) {
-                showToast("Synchronization failure", "error");
             } finally { showLoading(false); }
         }
 
         async function loadVault() {
             if (!currentUser) return;
-            const list = document.getElementById('vault-list');
             try {
-                const res = await fetch(`${API_URL}/list`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ currentUser }) 
-                });
-                
+                const res = await fetch(`${API_URL}/list`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser }) });
                 if (res.ok) {
                     const data = await res.json();
                     fullVaultData = data;
                     document.getElementById('vault-count').innerText = data.length + ' encrypted records';
-                    list.innerHTML = data.map((item, idx) => `
-                        <div onclick="openDetailModal(${idx})" class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all duration-300 group cursor-pointer relative btn-interact">
+                    document.getElementById('vault-list').innerHTML = data.map((item, idx) => `
+                        <div onclick="openDetailModal(${idx})" class="bg-[#171717] border border-white/5 p-8 rounded-[2.5rem] hover:border-blue-500/50 transition-all group cursor-pointer relative btn-interact">
                             <div class="flex justify-between items-start mb-6 text-[10px] font-black uppercase tracking-widest">
                                 <div class="text-blue-500 bg-blue-500/10 px-3 py-1 rounded-lg">${item.category}</div>
                                 <div class="text-gray-600 group-hover:text-blue-400 transition-colors uppercase font-black tracking-widest">Details</div>
@@ -483,100 +459,14 @@
                             <div class="w-full bg-black border border-white/5 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest text-center group-hover:bg-blue-600 transition-colors">Modify Account</div>
                         </div>
                     `).join('');
-                } else {
-                    const errData = await res.json().catch(() => ({}));
-                    showToast(errData.details || "Vault sync failure", "error");
                 }
-            } catch (err) {
-                showToast("Vault connection error", "error");
-            }
-        }
-
-        async function updateCredentials() {
-            const newU = document.getElementById('update-user').value.trim();
-            const newP = document.getElementById('update-pw').value;
-            if(!newU || !newP) return;
-            showLoading(true);
-            try {
-                const res = await fetch(`${API_URL}/update-profile`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ oldUsername: currentUser, newUsername: newU, newPassword: newP }) 
-                });
-                if(res.ok) { 
-                    showToast("Identity updated: Re-authenticating..."); 
-                    setTimeout(() => location.reload(), 2000); 
-                }
-            } finally { showLoading(false); }
-        }
-
-        async function loadAdminUserList() {
-            try {
-                const res = await fetch(`${API_URL}/list-all-users`, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminUser: currentUser }) 
-                });
-                const data = await res.json();
-                document.getElementById('admin-user-list').innerHTML = data.map((u, idx) => `
-                    <div class="bg-black/40 border border-white/5 p-6 rounded-[2rem] space-y-4">
-                        <div class="flex justify-between items-center">
-                            <span class="text-white font-black text-lg tracking-tight">${u.username}</span>
-                            <span class="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded border ${u.role === 'admin' ? 'text-red-500 border-red-500/30' : 'text-gray-500 border-white/10'}">${u.role}</span>
-                        </div>
-                        <div class="space-y-1">
-                            <p class="text-[9px] font-black text-gray-600 uppercase tracking-widest">Master Key</p>
-                            <div class="relative flex items-center">
-                                <input id="admin-pw-${idx}" type="password" value="${u.password}" readonly class="bg-transparent text-xs font-mono text-gray-400 w-full outline-none pr-8">
-                                <button onclick="toggleVisibility('admin-pw-${idx}')" class="absolute right-0 text-gray-600 hover:text-white">
-                                    <svg id="eye-icon-${idx}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
-                                        <path class="eye-open" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
-                                        <path class="eye-open" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
-                                        <path class="eye-slash hidden" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/>
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="pt-2 border-t border-white/5 flex justify-between items-center">
-                            <span class="text-[10px] font-black text-blue-500 uppercase">${u.entryCount} Entries</span>
-                            ${u.username !== currentUser ? `<button onclick="adminDeleteUser('${u.username}')" class="btn-interact text-[9px] font-black uppercase tracking-widest bg-red-950/30 text-red-500 px-4 py-2 rounded-xl">Terminate</button>` : ''}
-                        </div>
-                    </div>
-                `).join('');
             } catch (err) {}
-        }
-
-        async function adminDeleteUser(target) {
-            if(!confirm(`Permanently delete account: ${target}?`)) return;
-            showLoading(true);
-            try {
-                await fetch(`${API_URL}/admin-delete-user`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser, targetUser: target }) });
-                loadAdminUserList();
-                showToast("Account Terminated", "error");
-            } finally { showLoading(false); }
-        }
-
-        async function adminCreateAccount() {
-            const u = document.getElementById('reg-user').value.trim(); 
-            const p = document.getElementById('reg-pw').value;
-            if(!u || !p) return;
-            showLoading(true);
-            try {
-                const res = await fetch(`${API_URL}/create-account`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser, newUsername: u, newPassword: p }) });
-                if(res.ok) { 
-                    showToast("User Identity Registered"); 
-                    document.getElementById('reg-user').value = ""; 
-                    document.getElementById('reg-pw').value = ""; 
-                    loadAdminUserList(); 
-                }
-            } finally { showLoading(false); }
         }
 
         function exportVault() {
             if (fullVaultData.length === 0) return;
             const blob = new Blob([JSON.stringify(fullVaultData, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a'); a.href = url; a.download = `vault-export-${currentUser}.json`; a.click();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vault-${currentUser}.json`; a.click();
         }
 
         async function importVault(event) {
@@ -586,14 +476,10 @@
             reader.onload = async (e) => {
                 const data = JSON.parse(e.target.result);
                 showLoading(true);
-                let count = 0;
                 for (const entry of data) { 
-                    try {
-                        const res = await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) }); 
-                        if(res.ok) count++;
-                    } catch(e) {}
+                    await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) }); 
                 }
-                showToast(`Imported ${count} records`);
+                showToast(`Imported records`);
                 loadVault();
                 showLoading(false);
             };
