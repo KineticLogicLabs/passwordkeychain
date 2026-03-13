@@ -1,12 +1,35 @@
 <script>
+    // YOUR LIVE SUPABASE URL
     const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
 
     async function handleLogin() {
-        // Change your fetch calls to use the full API_URL
-        const res = await fetch(`${API_URL}/auth`, { 
-            method: 'POST', 
-            body: JSON.stringify({ username: userInp.value, password: passInp.value }) 
-        });
-        // ... rest of your original code
+        const userInp = document.getElementById('auth-user');
+        const passInp = document.getElementById('auth-pw');
+        
+        try {
+            const res = await fetch(`${API_URL}/auth`, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: userInp.value, password: passInp.value }) 
+            });
+            const data = await res.json();
+            if(res.ok) {
+                currentUser = userInp.value;
+                categories = data.categories;
+                // Transition UI...
+            } else { showLoginError(); }
+        } catch (e) { showLoginError(); }
     }
+
+    async function loadVault() {
+        const res = await fetch(`${API_URL}/list`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentUser }) 
+        });
+        fullVaultData = await res.json();
+        renderVault();
+    }
+    
+    // ... Apply the ${API_URL}/ prefix to all other fetch calls (save, trash, etc.)
 </script>
