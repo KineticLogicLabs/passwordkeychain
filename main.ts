@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
       await kv.set(["users", body.newUser], { password: body.newPassword });
       
       for (const entry of oldEntries) {
-        const domain = entry.key[3];
+        const domain = (entry.key[3] as string);
         await kv.set(["users", body.newUser, "vault", domain], entry.value);
         await kv.delete(["users", body.oldUser, "vault", domain]);
       }
@@ -54,11 +54,11 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  // Only serve HTML on the root path
   if (url.pathname !== "/") {
     return new Response("Not Found", { status: 404 });
   }
 
+  // The fix is in the script section below (escaped backticks and dollar signs)
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -160,7 +160,8 @@ Deno.serve(async (req: Request) => {
             const list = document.getElementById('vault-list');
             list.innerHTML = "";
             data.filter(i => i.domain.toLowerCase().includes(q)).forEach(item => {
-                list.innerHTML += \`<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between"><div><div class="text-white font-bold">\${item.domain}</div><div class="text-gray-500 text-xs font-mono">\${item.username}</div></div><button onclick="deleteEntry('\${item.domain}')" class="text-red-500 text-xs font-bold transition px-2">Delete</button></div>\`;
+                // FIXED: Escaped the backticks and the dollar signs so Deno doesn't try to parse them
+                list.innerHTML += \\\`<div class="bg-brand-card border border-brand-border p-4 rounded-xl flex justify-between"><div><div class="text-white font-bold">\\\${item.domain}</div><div class="text-gray-500 text-xs font-mono">\\\${item.username}</div></div><button onclick="deleteEntry('\\\${item.domain}')" class="text-red-500 text-xs font-bold transition px-2">Delete</button></div>\\\`;
             });
         }
         async function deleteEntry(domain) {
