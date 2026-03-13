@@ -213,9 +213,9 @@ Deno.serve(async (req: Request) => {
             };
             reader.readAsText(file);
         }
-    </script>
+   </script>
 </body>
-</html>\`;
+</html>`; // <--- Add this backtick here to close the string
 
   return new Response(html, { headers: { "Content-Type": "text/html" } });
 });
