@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
       if (url.pathname === "/auth") {
         const user = await kv.get(["users", body.username]);
         if (user.value && (user.value as any).password === body.password) {
-          return new Response(JSON.stringify({ success: true, categories: (user.value as any).categories || [] }), {
+          return new Response(JSON.stringify({ success: true, categories: (user.value as any).categories || ["Personal", "Work", "Finance", "Social"] }), {
             headers: { "Content-Type": "application/json" },
           });
         }
@@ -31,41 +31,22 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify(items), { headers: { "Content-Type": "application/json" } });
       }
 
-      if (url.pathname === "/list-trash") {
-        const items = [];
-        const iter = kv.list({ prefix: ["users", body.currentUser, "trash"] });
-        for await (const entry of iter) items.push(entry.value);
-        return new Response(JSON.stringify(items), { headers: { "Content-Type": "application/json" } });
-      }
-
-      if (url.pathname === "/trash-entry") {
-        const key = ["users", body.currentUser, "vault", body.domain.toLowerCase()];
-        const entry = await kv.get(key);
-        if (entry.value) {
-          const trashEntry = { ...entry.value, deletedAt: Date.now() };
-          await kv.set(["users", body.currentUser, "trash", body.domain.toLowerCase()], trashEntry);
-          await kv.delete(key);
+      if (url.pathname === "/save-categories") {
+        const user = await kv.get(["users", body.currentUser]);
+        if (user.value) {
+          await kv.set(["users", body.currentUser], { ...(user.value as object), categories: body.categories });
+          return new Response(JSON.stringify({ success: true }));
         }
-        return new Response(JSON.stringify({ success: true }));
-      }
-
-      if (url.pathname === "/perm-delete") {
-        await kv.delete(["users", body.currentUser, "trash", body.domain.toLowerCase()]);
-        return new Response(JSON.stringify({ success: true }));
-      }
-
-      if (url.pathname === "/restore") {
-        const key = ["users", body.currentUser, "trash", body.domain.toLowerCase()];
-        const entry = await kv.get(key);
-        if (entry.value) {
-          await kv.set(["users", body.currentUser, "vault", body.domain.toLowerCase()], entry.value);
-          await kv.delete(key);
-        }
-        return new Response(JSON.stringify({ success: true }));
       }
 
       if (url.pathname === "/save") {
+        // Use domain as key, but store original casing in value
         await kv.set(["users", body.currentUser, "vault", body.entry.domain.toLowerCase()], body.entry);
+        return new Response(JSON.stringify({ success: true }));
+      }
+
+      if (url.pathname === "/delete") {
+        await kv.delete(["users", body.currentUser, "vault", body.domain.toLowerCase()]);
         return new Response(JSON.stringify({ success: true }));
       }
 
@@ -75,7 +56,9 @@ Deno.serve(async (req: Request) => {
         await kv.set(["users", body.username], { password: body.password, categories: ["Personal", "Work", "Finance", "Social"] });
         return new Response(JSON.stringify({ success: true }));
       }
-    } catch (err) { return new Response("Error", { status: 400 }); }
+    } catch (err) {
+      return new Response("Error", { status: 400 });
+    }
   }
 
   const html = `<!DOCTYPE html>
@@ -90,14 +73,14 @@ Deno.serve(async (req: Request) => {
         .modal-bg { backdrop-filter: blur(12px); background: rgba(0,0,0,0.7); }
         .toast-pop { animation: popUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
         @keyframes popUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans selection:bg-blue-500/30">
+<body class="bg-[#0a0a0a] text-gray-200 p-4 md:p-8 font-sans overflow-x-hidden">
     
-    <div id="toast-container" class="fixed bottom-10 inset-x-0 flex justify-center z-[100] hidden">
-        <div class="toast-pop bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl font-bold border border-red-400">Authentication Failed</div>
+    <div id="toast-container" class="fixed bottom-10 inset-x-0 flex justify-center z-[100] pointer-events-none hidden">
+        <div class="toast-pop bg-red-600 text-white px-8 py-4 rounded-2xl shadow-2xl font-bold border border-red-400 pointer-events-auto">
+            Authentication Failed: Please check your credentials.
+        </div>
     </div>
 
     <div id="detail-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-bg">
@@ -112,55 +95,70 @@ Deno.serve(async (req: Request) => {
             <h1 class="text-4xl font-black text-white tracking-tight">Password Keychain</h1>
             <p class="text-blue-500 text-xs tracking-widest mt-2 uppercase font-bold">By Kinetic Logic Labs</p>
         </div>
-        <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem]">
+        <div id="login-card" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] shadow-2xl">
             <div class="space-y-4">
-                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500">
-                <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500">
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
+                <div class="relative">
+                    <input id="auth-pw" type="password" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-2xl text-white outline-none focus:border-blue-500 transition-colors">
+                    <button onclick="togglePw('auth-pw')" class="absolute right-4 top-4 text-[10px] text-gray-500 hover:text-white uppercase font-black tracking-widest">Show</button>
+                </div>
             </div>
-            <button onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95">ACCESS VAULT</button>
+            <button id="login-btn" onclick="handleLogin()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl mt-8 transition-all active:scale-95">ACCESS VAULT</button>
             <p id="error-msg" class="text-red-500 text-center text-sm font-bold mt-4 opacity-0 transition-opacity">Invalid Password</p>
         </div>
     </div>
 
     <div id="vault-screen" class="hidden w-full max-w-5xl mx-auto">
-        <div class="flex flex-col md:flex-row justify-between items-end gap-6 mb-10">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-10">
             <div>
                 <p class="text-blue-500 text-[10px] tracking-widest uppercase font-black mb-1">Kinetic Logic Labs</p>
-                <h1 class="text-4xl font-black text-white tracking-tight">Vault</h1>
+                <h1 class="text-4xl font-black text-white tracking-tight">My Vault</h1>
+                <p id="vault-count" class="text-xs text-gray-500 font-mono mt-1">0 encrypted records</p>
             </div>
-            <div class="flex flex-wrap gap-3">
-                <button onclick="showTrash()" class="bg-[#171717] border border-[#262626] px-6 py-4 rounded-2xl font-black text-xs hover:text-blue-400 transition-colors uppercase">Trash Folder</button>
-                <button onclick="location.reload()" class="bg-red-950/30 text-red-500 border border-red-900/40 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest">Lock</button>
+            <div class="flex flex-wrap gap-3 w-full md:w-auto">
+                <button onclick="toggleSettings()" class="flex-1 md:flex-none bg-[#171717] border border-[#262626] px-8 py-4 rounded-2xl font-black text-xs hover:bg-[#212121] transition-colors uppercase tracking-widest">Settings</button>
+                <button onclick="exportVault()" class="flex-1 md:flex-none bg-[#171717] border border-[#262626] px-8 py-4 rounded-2xl font-black text-xs hover:bg-[#212121] transition-colors uppercase tracking-widest">Export</button>
+                <button onclick="document.getElementById('import-file').click()" class="flex-1 md:flex-none bg-[#171717] border border-[#262626] px-8 py-4 rounded-2xl font-black text-xs hover:bg-[#212121] transition-colors uppercase tracking-widest">Import</button>
+                <button onclick="location.reload()" class="flex-1 md:flex-none bg-red-950/30 text-red-500 border border-red-900/40 px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest">Lock</button>
+                <input type="file" id="import-file" class="hidden" onchange="importVault(event)">
             </div>
         </div>
 
-        <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-10 shadow-xl">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+        <div id="settings-panel" class="hidden bg-[#171717] border border-blue-900/20 p-8 rounded-[2rem] mb-10">
+            <div class="grid md:grid-cols-2 gap-10">
+                <div>
+                    <h3 class="text-white text-xs font-black mb-4 uppercase text-blue-500 tracking-widest">Registry</h3>
+                    <input id="new-acc-user" placeholder="New Username" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white mb-3">
+                    <input id="new-acc-pw" type="password" placeholder="New Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white mb-6">
+                    <button onclick="createNewAccount()" class="w-full bg-blue-600 py-4 rounded-xl text-xs font-black uppercase tracking-widest">Register</button>
+                </div>
+                <div>
+                    <h3 class="text-white text-xs font-black mb-4 uppercase text-blue-500 tracking-widest">Categories</h3>
+                    <textarea id="cat-editor" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white h-28 mb-3 outline-none"></textarea>
+                    <button onclick="updateCategories()" class="w-full bg-[#262626] py-4 rounded-xl text-xs font-black uppercase tracking-widest">Update</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col md:flex-row gap-4 mb-8">
+            <input id="search" oninput="loadVault()" placeholder="Search vault entries..." class="flex-1 bg-[#171717] border border-[#262626] p-5 rounded-2xl outline-none text-white focus:border-blue-500 transition-all">
+            <div class="bg-[#171717] border border-[#262626] rounded-2xl p-1.5 flex gap-1">
+                <button onclick="setView('list')" id="btn-list" class="px-6 py-3 rounded-xl text-xs font-black uppercase bg-blue-600 text-white transition-all">List</button>
+                <button onclick="setView('card')" id="btn-card" class="px-6 py-3 rounded-xl text-xs font-black uppercase text-gray-500 hover:text-white transition-all">Cards</button>
+            </div>
+        </div>
+
+        <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] mb-10">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <input id="dom" placeholder="Domain" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
                 <input id="usr" placeholder="Username" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
                 <div class="relative">
                     <input id="pwd" placeholder="Password" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none">
-                    <button onclick="generatePass('pwd')" class="absolute right-3 top-3 text-blue-500 text-[10px] font-black uppercase tracking-tighter">Gen</button>
+                    <button onclick="generatePass('pwd')" class="absolute right-3 top-3 bg-blue-600/10 text-blue-500 px-3 py-2 rounded-lg text-[10px] font-black uppercase tracking-tighter hover:bg-blue-600/20">Gen</button>
                 </div>
+                <select id="cat" class="bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-white outline-none cursor-pointer"></select>
             </div>
-            <div class="flex flex-col md:flex-row gap-4">
-                <div class="relative flex-1 group">
-                    <button id="cat-select-btn" onclick="toggleCatDropdown()" class="w-full bg-[#0a0a0a] border border-[#262626] p-4 rounded-xl text-sm text-left text-gray-400 flex justify-between items-center">
-                        <span id="selected-cat-label">Select Category</span>
-                        <span class="text-[8px] opacity-50">▼</span>
-                    </button>
-                    <div id="cat-dropdown" class="hidden absolute top-full left-0 right-0 mt-2 bg-[#171717] border border-[#262626] rounded-xl overflow-hidden z-20 shadow-2xl">
-                        <div id="cat-options" class="max-h-48 overflow-y-auto custom-scrollbar"></div>
-                    </div>
-                </div>
-                <button onclick="saveEntry()" class="md:w-64 bg-blue-600 font-black py-4 rounded-xl text-sm tracking-widest hover:bg-blue-500 transition-all">SAVE ENTRY</button>
-            </div>
-        </div>
-
-        <div class="flex gap-4 mb-6">
-            <input id="search" oninput="renderVault()" placeholder="Filter keys..." class="flex-1 bg-[#171717] border border-[#262626] p-5 rounded-2xl outline-none text-white">
-            <button onclick="setView('list')" id="btn-list" class="px-6 py-4 rounded-2xl text-xs font-black uppercase bg-blue-600">List</button>
-            <button onclick="setView('card')" id="btn-card" class="px-6 py-4 rounded-2xl text-xs font-black uppercase bg-[#171717] text-gray-500">Cards</button>
+            <button onclick="saveEntry()" class="w-full bg-blue-600 font-black py-5 rounded-2xl hover:bg-blue-500 transition-all text-sm tracking-widest">SAVE TO VAULT</button>
         </div>
 
         <div id="vault-list" class="grid gap-4"></div>
@@ -168,50 +166,97 @@ Deno.serve(async (req: Request) => {
 
     <script>
         let currentUser = "";
-        let categories = [];
-        let selectedCat = "";
-        let fullVaultData = [];
-        let trashData = [];
+        let currentCategories = [];
         let viewMode = 'list';
-
-        async function handleLogin() {
-            const user = document.getElementById('auth-user').value;
-            const pass = document.getElementById('auth-pw').value;
-            const res = await fetch('/auth', { method: 'POST', body: JSON.stringify({ username: user, password: pass }) });
-            if(res.ok) {
-                const data = await res.json();
-                currentUser = user;
-                categories = data.categories;
-                document.getElementById('auth-container').classList.add('hidden');
-                document.getElementById('vault-screen').classList.remove('hidden');
-                setupCategoryUI();
-                loadVault();
-            } else { showLoginError(); }
-        }
+        let fullVaultData = [];
+        let editingIndex = null;
 
         function showLoginError() {
             const card = document.getElementById('login-card');
+            const msg = document.getElementById('error-msg');
             const toast = document.getElementById('toast-container');
             card.classList.add('shake');
+            msg.style.opacity = '1';
             toast.classList.remove('hidden');
-            setTimeout(() => { card.classList.remove('shake'); toast.classList.add('hidden'); }, 3000);
+            setTimeout(() => {
+                card.classList.remove('shake');
+                msg.style.opacity = '0';
+                toast.classList.add('hidden');
+            }, 4000);
         }
 
-        function setupCategoryUI() {
-            const container = document.getElementById('cat-options');
-            container.innerHTML = categories.map(c => \`
-                <div onclick="selectCategory('\${c}')" class="p-4 hover:bg-blue-600 hover:text-white cursor-pointer text-sm font-bold border-b border-[#262626] last:border-0">\${c}</div>
-            \`).join('');
+        function togglePw(id) {
+            const el = document.getElementById(id);
+            el.type = el.type === 'password' ? 'text' : 'password';
         }
 
-        function toggleCatDropdown() { document.getElementById('cat-dropdown').classList.toggle('hidden'); }
+        function generatePass(targetId) {
+            const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+            let p = Array.from(crypto.getRandomValues(new Uint32Array(16)))
+                        .map(n => chars[n % chars.length]).join('');
+            document.getElementById(targetId).value = p;
+        }
 
-        function selectCategory(c) {
-            selectedCat = c;
-            document.getElementById('selected-cat-label').innerText = c;
-            document.getElementById('selected-cat-label').classList.remove('text-gray-400');
-            document.getElementById('selected-cat-label').classList.add('text-white');
-            toggleCatDropdown();
+        function toggleSettings() {
+            document.getElementById('settings-panel').classList.toggle('hidden');
+        }
+
+        function setView(mode) {
+            viewMode = mode;
+            document.getElementById('btn-list').className = mode === 'list' ? 'px-6 py-3 rounded-xl text-xs font-black uppercase bg-blue-600 text-white' : 'px-6 py-3 rounded-xl text-xs font-black uppercase text-gray-500 hover:text-white';
+            document.getElementById('btn-card').className = mode === 'card' ? 'px-6 py-3 rounded-xl text-xs font-black uppercase bg-blue-600 text-white' : 'px-6 py-3 rounded-xl text-xs font-black uppercase text-gray-500 hover:text-white';
+            renderVault();
+        }
+
+        async function handleLogin() {
+            const userInp = document.getElementById('auth-user');
+            const passInp = document.getElementById('auth-pw');
+            try {
+                const res = await fetch('/auth', { 
+                    method: 'POST', body: JSON.stringify({ username: userInp.value, password: passInp.value }) 
+                });
+                const data = await res.json();
+                if(res.ok) {
+                    currentUser = userInp.value;
+                    currentCategories = data.categories;
+                    renderCategoryOptions();
+                    document.getElementById('auth-container').classList.add('hidden');
+                    document.getElementById('vault-screen').classList.remove('hidden');
+                    loadVault();
+                } else { showLoginError(); }
+            } catch { showLoginError(); }
+        }
+
+        function renderCategoryOptions() {
+            const select = document.getElementById('cat');
+            const editor = document.getElementById('cat-editor');
+            select.innerHTML = currentCategories.map(c => \`<option value="\${c}">\${c}</option>\`).join('');
+            editor.value = currentCategories.join(', ');
+        }
+
+        async function updateCategories() {
+            const cats = document.getElementById('cat-editor').value.split(',').map(s => s.trim()).filter(s => s);
+            const res = await fetch('/save-categories', {
+                method: 'POST', body: JSON.stringify({ currentUser, categories: cats })
+            });
+            if(res.ok) {
+                currentCategories = cats;
+                renderCategoryOptions();
+                alert("Categories Updated");
+            }
+        }
+
+        async function saveEntry() {
+            const entry = { 
+                domain: document.getElementById('dom').value, 
+                username: document.getElementById('usr').value, 
+                password: document.getElementById('pwd').value,
+                category: document.getElementById('cat').value 
+            };
+            if(!entry.domain) return;
+            await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
+            ['dom', 'usr', 'pwd'].forEach(id => document.getElementById(id).value = "");
+            loadVault();
         }
 
         async function loadVault() {
@@ -224,110 +269,132 @@ Deno.serve(async (req: Request) => {
             const q = document.getElementById('search').value.toLowerCase();
             const list = document.getElementById('vault-list');
             list.innerHTML = "";
-            list.className = viewMode === 'list' ? 'grid gap-3' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6';
+            list.className = viewMode === 'list' ? 'grid gap-4' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6';
 
-            fullVaultData.filter(i => i.domain.toLowerCase().includes(q)).forEach((item, index) => {
-                const inner = viewMode === 'list' ? \`
-                    <div class="bg-[#171717] border border-[#262626] p-5 rounded-2xl flex justify-between items-center group">
-                        <div onclick="openItem(\${index})" class="flex-1 cursor-pointer flex items-center gap-4">
+            const filtered = fullVaultData.filter(i => 
+                i.domain.toLowerCase().includes(q) || i.username.toLowerCase().includes(q)
+            );
+            document.getElementById('vault-count').innerText = filtered.length + ' entries total';
+
+            filtered.forEach((item, index) => {
+                const html = viewMode === 'list' ? \`
+                    <div onclick="openItem(\${index})" class="bg-[#171717] border border-[#262626] p-6 rounded-2xl flex justify-between items-center hover:border-blue-500 cursor-pointer transition-all group">
+                        <div class="flex items-center gap-6">
                             <div class="h-10 w-10 bg-blue-600/10 rounded-xl flex items-center justify-center text-blue-500 font-black">\${item.domain[0].toUpperCase()}</div>
-                            <div>
-                                <div class="text-white font-bold">\${item.domain}</div>
-                                <div class="text-gray-500 text-[10px] uppercase font-black tracking-tighter">\${item.category}</div>
-                            </div>
+                            <div><span class="text-white font-bold text-lg">\${item.domain}</span><div class="text-gray-500 text-xs font-mono">\${item.username}</div></div>
                         </div>
-                        <button onclick="trashEntry('\${item.domain}')" class="h-12 w-12 flex items-center justify-center rounded-xl bg-red-950/20 text-red-500 border border-red-900/20 hover:bg-red-600 hover:text-white transition-all">Δ</button>
+                        <div class="text-[10px] text-blue-500 font-black uppercase bg-blue-600/5 px-3 py-1 rounded-lg">\${item.category}</div>
                     </div>\` : \`
-                    <div class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] relative group overflow-hidden">
-                        <div onclick="openItem(\${index})" class="cursor-pointer">
-                            <div class="text-blue-500 text-[10px] font-black uppercase mb-4 tracking-widest">\${item.category}</div>
-                            <div class="text-white font-black text-2xl mb-1">\${item.domain}</div>
-                            <div class="text-gray-500 text-sm font-mono opacity-60 mb-6">\${item.username}</div>
-                        </div>
-                        <button onclick="trashEntry('\${item.domain}')" class="absolute top-6 right-6 h-10 w-10 flex items-center justify-center rounded-full bg-red-950/30 text-red-500 font-bold border border-red-900/20 hover:bg-red-600 hover:text-white">Δ</button>
+                    <div onclick="openItem(\${index})" class="bg-[#171717] border border-[#262626] p-8 rounded-[2.5rem] cursor-pointer hover:border-blue-500 transition-all group relative">
+                        <div class="text-blue-500 text-[10px] font-black uppercase mb-4 tracking-widest">\${item.category}</div>
+                        <div class="text-white font-black text-2xl mb-2 group-hover:text-blue-400">\${item.domain}</div>
+                        <div class="text-gray-500 text-sm font-mono truncate opacity-60 mb-4">\${item.username}</div>
+                        <div class="text-[10px] text-gray-600 font-bold uppercase group-hover:text-blue-500 transition-colors">Details &rarr;</div>
                     </div>\`;
-                list.innerHTML += inner;
+                list.innerHTML += html;
             });
         }
 
-        async function trashEntry(domain) {
-            await fetch('/trash-entry', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
-            loadVault();
+        function copyText(text, label) {
+            navigator.clipboard.writeText(text);
+            const feedback = document.getElementById('copy-feedback');
+            feedback.innerText = "Copied " + label + "!";
+            feedback.style.opacity = '1';
+            setTimeout(() => feedback.style.opacity = '0', 2000);
         }
 
-        async function showTrash() {
-            const res = await fetch('/list-trash', { method: 'POST', body: JSON.stringify({ currentUser }) });
-            trashData = await res.json();
+        function openItem(index) {
+            editingIndex = index;
+            const item = fullVaultData[index];
             const modal = document.getElementById('detail-modal');
             const content = document.getElementById('modal-content');
             
             content.innerHTML = \`
-                <h2 class="text-3xl font-black text-white mb-2">Trash Folder</h2>
-                <p class="text-gray-500 text-xs mb-6 uppercase font-bold tracking-widest">Expires in 5 Days</p>
-                <div class="space-y-3 max-h-96 overflow-y-auto custom-scrollbar pr-2">
-                    \${trashData.length === 0 ? '<p class="text-gray-600 py-10 text-center">Trash is empty</p>' : trashData.map(t => \`
-                        <div class="p-4 bg-[#0a0a0a] border border-[#262626] rounded-2xl flex justify-between items-center">
-                            <div>
-                                <div class="text-white font-bold text-sm">\${t.domain}</div>
-                                <div class="text-[9px] text-gray-500 uppercase">\${new Date(t.deletedAt).toLocaleDateString()}</div>
-                            </div>
-                            <div class="flex gap-2">
-                                <button onclick="restore('\${t.domain}')" class="text-blue-500 text-[10px] font-black uppercase">Restore</button>
-                                <button onclick="permDelete('\${t.domain}')" class="text-red-500 text-[10px] font-black uppercase">Wipe</button>
-                            </div>
+                <div class="mb-8">
+                    <p class="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-1">Edit Entry</p>
+                    <input id="edit-dom" value="\${item.domain}" class="bg-transparent text-3xl font-black text-white w-full border-none outline-none focus:text-blue-400">
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="p-4 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
+                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Username (Click to copy)</p>
+                        <div class="flex items-center gap-2">
+                            <input id="edit-usr" onclick="copyText(this.value, 'Username')" value="\${item.username}" class="bg-transparent text-white text-lg font-mono flex-1 outline-none">
                         </div>
-                    \`).join('')}
+                    </div>
+                    
+                    <div class="p-4 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
+                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Password (Click to copy)</p>
+                        <div class="flex items-center gap-3">
+                            <input id="edit-pwd" onclick="copyText(this.value, 'Password')" type="password" value="\${item.password}" class="bg-transparent text-blue-400 text-xl font-mono flex-1 outline-none">
+                            <button onclick="togglePw('edit-pwd')" class="text-[10px] text-gray-600 font-bold hover:text-white uppercase tracking-tighter">Toggle</button>
+                            <button onclick="generatePass('edit-pwd')" class="text-[10px] text-blue-900 font-bold hover:text-blue-500 uppercase tracking-tighter">Gen</button>
+                        </div>
+                    </div>
+
+                    <div class="p-4 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
+                         <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Category</p>
+                         <select id="edit-cat" class="bg-transparent text-white text-sm outline-none w-full">
+                            \${currentCategories.map(c => \`<option value="\${c}" \${c === item.category ? 'selected' : ''}>\${c}</option>\`).join('')}
+                         </select>
+                    </div>
+                </div>
+
+                <div id="copy-feedback" class="text-center text-green-500 text-[10px] font-bold mt-4 opacity-0 transition-opacity uppercase tracking-widest">Copied!</div>
+
+                <div class="mt-8 flex gap-3">
+                    <button onclick="updateVaultEntry()" class="flex-1 bg-blue-600 text-white font-black py-4 rounded-xl text-xs uppercase tracking-widest hover:bg-blue-500 transition-all">Save Changes</button>
+                    <button onclick="deleteEntry('\${item.domain}')" class="bg-red-950/30 text-red-500 px-6 rounded-xl text-xs font-bold uppercase hover:bg-red-600 hover:text-white transition-all">Delete</button>
                 </div>
             \`;
             modal.classList.remove('hidden');
         }
 
-        async function permDelete(domain) {
-            if(!confirm("Permanently wipe this key? This cannot be undone.")) return;
-            await fetch('/perm-delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
-            showTrash();
-        }
+        async function updateVaultEntry() {
+            const oldDomain = fullVaultData[editingIndex].domain;
+            const newEntry = {
+                domain: document.getElementById('edit-dom').value,
+                username: document.getElementById('edit-usr').value,
+                password: document.getElementById('edit-pwd').value,
+                category: document.getElementById('edit-cat').value
+            };
 
-        async function restore(domain) {
-            await fetch('/restore', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
-            showTrash();
+            // If domain name changed, delete the old key first
+            if (oldDomain.toLowerCase() !== newEntry.domain.toLowerCase()) {
+                await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain: oldDomain }) });
+            }
+
+            await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry: newEntry }) });
+            closeModal();
             loadVault();
         }
 
-        async function saveEntry() {
-            const entry = { domain: document.getElementById('dom').value, username: document.getElementById('usr').value, password: document.getElementById('pwd').value, category: selectedCat };
-            if(!entry.domain || !selectedCat) return alert("Select a category first!");
-            await fetch('/save', { method: 'POST', body: JSON.stringify({ currentUser, entry }) });
-            ['dom','usr','pwd'].forEach(i => document.getElementById(i).value = "");
+        function closeModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+            editingIndex = null;
+        }
+
+        async function deleteEntry(domain) {
+            if(!confirm("Permanently delete?")) return;
+            await fetch('/delete', { method: 'POST', body: JSON.stringify({ currentUser, domain }) });
+            closeModal();
             loadVault();
         }
 
-        function setView(m) { viewMode = m; renderVault(); }
-        function closeModal() { document.getElementById('detail-modal').classList.add('hidden'); }
-        function openItem(idx) {
-            const item = fullVaultData[idx];
-            const content = document.getElementById('modal-content');
-            content.innerHTML = \`
-                <p class="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-1">\${item.category}</p>
-                <h2 class="text-4xl font-black text-white mb-8">\${item.domain}</h2>
-                <div class="space-y-4">
-                    <div class="p-5 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
-                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Username</p>
-                        <p class="text-white text-lg font-mono">\${item.username}</p>
-                    </div>
-                    <div class="p-5 bg-[#0a0a0a] border border-[#262626] rounded-2xl">
-                        <p class="text-[10px] text-gray-500 uppercase font-black mb-1">Password</p>
-                        <p class="text-blue-400 text-xl font-mono">••••••••••••</p>
-                    </div>
-                </div>
-                <button onclick="closeModal()" class="w-full mt-8 bg-blue-600 py-4 rounded-xl text-xs font-black uppercase tracking-widest">Back to Vault</button>
-            \`;
-            document.getElementById('detail-modal').classList.remove('hidden');
+        async function createNewAccount() {
+            const username = document.getElementById('new-acc-user').value;
+            const password = document.getElementById('new-acc-pw').value;
+            const res = await fetch('/create-account', { method: 'POST', body: JSON.stringify({ username, password }) });
+            if(res.ok) alert("Registered!");
         }
 
-        function generatePass(id) {
-            const c = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-            document.getElementById(id).value = Array.from(crypto.getRandomValues(new Uint32Array(16))).map(n => c[n % c.length]).join('');
+        async function exportVault() {
+            const res = await fetch('/list', { method: 'POST', body: JSON.stringify({ currentUser }) });
+            const data = await res.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'vault.json'; a.click();
         }
 </script>
 </body>
