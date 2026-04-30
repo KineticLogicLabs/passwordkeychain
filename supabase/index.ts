@@ -1,8 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// In a real production app, this should be restricted to your domain.
-// In the AI Studio preview environment, we use '*' to allow the iframe and dev URLs.
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -10,12 +8,12 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight
+  // 1. Handle CORS preflight
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   const url = new URL(req.url);
   
-  // Environment variables are provided by the Supabase project configuration
+  // 2. Check Environment Variables
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
@@ -32,47 +30,52 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   
   try {
-    const body = await req.json().catch(() => ({}));
-
-    // 1. AUTHENTICATION
-    if (url.pathname.endsWith("/auth")) {
-      const { data: user, error } = await supabase
-        .from('vault_users')
-        .select('*')
-        .eq('username', body.username)
-        .eq('password', body.password)
-        .single();
-
-      if (user && !error) {
-        return new Response(JSON.stringify({ 
-          success: true, 
-          role: user.role,
-          categories: user.categories 
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      return new Response(JSON.stringify({ error: "Invalid credentials" }), { status: 401, headers: corsHeaders });
+    // 3. JWT Verification
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), { 
+        status: 401, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      });
     }
 
-    // 2. LIST ENTRIES
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Invalid or expired session", details: authError?.message }), { 
+        status: 401, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      });
+    }
+
+    // Source of truth for identity
+    const authenticatedUser = user.email;
+    const body = await req.json().catch(() => ({}));
+
+    // 4. LIST ENTRIES
     if (url.pathname.endsWith("/list")) {
       const { data, error } = await supabase
         .from('vault_entries')
         .select('*')
-        .eq('owner', body.currentUser)
+        .eq('owner', authenticatedUser)
         .order('domain', { ascending: true });
 
       if (error) throw error;
       return new Response(JSON.stringify(data || []), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // 3. SAVE/UPDATE ENTRY
+    // 5. SAVE/UPDATE ENTRY
     if (url.pathname.endsWith("/save")) {
-      const owner = body.currentUser;
       const entry = body.entry;
       const oldDomain = body.oldDomain;
 
+      if (!entry || !entry.domain) {
+        return new Response(JSON.stringify({ error: "Invalid entry data" }), { status: 400, headers: corsHeaders });
+      }
+
       const entryData: any = { 
-        owner: owner, 
+        owner: authenticatedUser, 
         domain: entry.domain.trim(),
         username: entry.username || '', 
         password: entry.password || '', 
@@ -87,7 +90,7 @@ serve(async (req) => {
         await supabase
           .from('vault_entries')
           .delete()
-          .eq('owner', owner)
+          .eq('owner', authenticatedUser)
           .eq('domain', oldDomain);
         
         if (body.createdAt) entryData.created_at = body.createdAt;
@@ -103,94 +106,18 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
 
-    // 4. DELETE ENTRY
+    // 6. DELETE ENTRY
     if (url.pathname.endsWith("/delete")) {
+      if (!body.domain) {
+        return new Response(JSON.stringify({ error: "Domain required for deletion" }), { status: 400, headers: corsHeaders });
+      }
+
       const { error } = await supabase
         .from('vault_entries')
         .delete()
-        .eq('owner', body.currentUser)
-        .eq('domain', body.domain?.trim());
+        .eq('owner', authenticatedUser)
+        .eq('domain', body.domain.trim());
 
-      if (error) throw error;
-      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-    }
-
-    // 5. UPDATE PROFILE
-    if (url.pathname.endsWith("/update-profile")) {
-      const updateData: any = {};
-      if (body.newUsername) updateData.username = body.newUsername;
-      if (body.newPassword) updateData.password = body.newPassword;
-      if (body.newCategories) updateData.categories = body.newCategories;
-
-      const { error } = await supabase
-        .from('vault_users')
-        .update(updateData)
-        .eq('username', body.oldUsername);
-
-      if (error) throw error;
-      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-    }
-
-    // 6. ADMIN: LIST ALL USERS
-    if (url.pathname.endsWith("/list-all-users")) {
-      const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
-      if (admin?.role !== 'admin') {
-        return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
-      }
-
-      const { data: users } = await supabase.from('vault_users').select('username, password, role');
-      const { data: counts } = await supabase.from('vault_entries').select('owner');
-      
-      const processedUsers = (users || []).map(u => ({
-          ...u,
-          entryCount: (counts || []).filter(c => c.owner === u.username).length || 0
-      }));
-
-      return new Response(JSON.stringify(processedUsers), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    // 7. ADMIN: CREATE ACCOUNT
-    if (url.pathname.endsWith("/create-account")) {
-      const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser || '').single();
-      if (!admin || admin.role !== 'admin') {
-        return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
-      }
-
-      const { error } = await supabase
-        .from('vault_users')
-        .insert([{ username: body.newUsername, password: body.newPassword, role: 'user' }]);
-
-      if (error) throw error;
-      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-    }
-
-    // 8. ADMIN: DELETE USER
-    if (url.pathname.endsWith("/admin-delete-user")) {
-      const { data: admin } = await supabase.from('vault_users').select('role').eq('username', body.adminUser).single();
-      if (admin?.role !== 'admin') {
-        return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403, headers: corsHeaders });
-      }
-
-      const { error } = await supabase.from('vault_users').delete().eq('username', body.targetUser);
-      if (error) throw error;
-      return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-    }
-
-    // 9. DELETE SELF ACCOUNT
-    if (url.pathname.endsWith("/delete-self-account")) {
-      const { username, password } = body;
-      const { data: user } = await supabase
-        .from('vault_users')
-        .select('role')
-        .eq('username', username)
-        .eq('password', password)
-        .single();
-
-      if (!user) {
-        return new Response(JSON.stringify({ error: "Verification Failed" }), { status: 401, headers: corsHeaders });
-      }
-
-      const { error } = await supabase.from('vault_users').delete().eq('username', username);
       if (error) throw error;
       return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
     }
