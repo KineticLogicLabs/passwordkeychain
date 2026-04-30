@@ -1,0 +1,6 @@
+{
+  "name": "Password Keychain",
+  "description": "Secure vault for managing your digital credentials by Kinetic Logic Labs",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

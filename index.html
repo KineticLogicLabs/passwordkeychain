@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
+    <title>Password Keychain | Vault Core</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
+    <style>
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-8px); } 75% { transform: translateX(8px); } }
+        .shake { animation: shake 0.15s ease-in-out 0s 2; }
+        .toast-pop { animation: slideUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .spinner { border: 3px solid rgba(15, 23, 42, 0.1); border-left-color: #3b82f6; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite; }
+        .dark .spinner { border: 3px solid rgba(255, 255, 255, 0.3); border-left-color: #60a5fa; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        .modal-bg { background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); transition: all 0.3s ease; }
+        .dark .modal-bg { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(4px); }
+        .color-bubble { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; transition: transform 0.2s, border 0.2s; border: 2px solid transparent; }
+        .color-bubble:hover { transform: scale(1.15); }
+        .color-bubble.active { border-color: #0f172a; }
+        .dark .color-bubble.active { border-color: #f1f5f9; }
+        .settings-transition { transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); max-height: 0; overflow: hidden; opacity: 0; transform: translateY(-10px); }
+        .settings-transition.show { max-height: 3000px; opacity: 1; transform: translateY(0); margin-bottom: 3rem; }
+        .btn-interact { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-interact:active { transform: scale(0.95); }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+        input, select, textarea { font-size: 16px !important; }
+    </style>
+</head>
+<body class="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-slate-200 dark:selection:bg-slate-800 overflow-hidden h-screen w-full flex">
+    <style>
+        .tab-content { display: none; opacity: 0; transition: opacity 0.3s; }
+        .tab-content.active { display: block; opacity: 1; }
+        .nav-btn.active { background-color: #eff6ff; color: #1d4ed8; }
+        .dark .nav-btn.active { background-color: #1e293b; color: #60a5fa; }
+        .nav-btn:not(.active) { color: #475569; }
+        .dark .nav-btn:not(.active) { color: #94a3b8; }
+        .nav-btn:not(.active):hover { background-color: #f8fafc; color: #0f172a; }
+        .dark .nav-btn:not(.active):hover { background-color: #1e293b; color: #f1f5f9; }
+    </style>
+
+    <div id="loading-overlay" class="fixed inset-0 bg-white dark:bg-slate-900 z-[999] flex flex-col items-center justify-center hidden">
+            <div class="flex flex-col items-center gap-4">
+                <div class="spinner"></div>
+                <p id="loading-text" class="text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Processing Request</p>
+            </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-10 inset-x-0 flex flex-col items-center gap-2 z-[150] pointer-events-none"></div>
+
+    <!-- Detail Modal -->
+    <div id="detail-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 modal-bg opacity-0 pointer-events-none transition-all duration-300">
+        <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 w-full max-w-2xl rounded-2xl p-8 md:p-12 shadow-2xl relative transform translate-y-4 transition-transform duration-300 overflow-y-auto max-h-[95vh]">
+            <button onclick="closeDetailModal()" class="absolute top-6 right-6 md:top-8 md:right-8 text-slate-400 hover:text-slate-500 text-xs font-bold uppercase tracking-widest transition-colors">Close</button>
+            
+            <div id="detail-modal-content">
+                <div class="mb-8 md:mb-10 group">
+                    <p id="edit-domain-label" class="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em] mb-2">Record Details</p>
+                    <div class="flex items-center gap-3">
+                        <input id="edit-domain" type="text" placeholder="Domain" oninput="checkForChanges()" class="text-2xl md:text-3xl font-bold bg-transparent border-none outline-none text-slate-900 dark:text-white w-full focus:text-slate-600 dark:focus:text-slate-300 transition-colors">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-8">
+                    <div id="edit-user-container" class="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 p-4 md:p-5 rounded-lg relative">
+                        <label id="edit-user-label" class="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-2">Username</label>
+                        <div class="flex items-center">
+                            <input id="edit-user" type="text" oninput="checkForChanges()" class="bg-transparent border-none outline-none text-slate-900 dark:text-white w-full font-mono text-sm">
+                            <button onclick="copyField(document.getElementById('edit-user'), 'Field')" class="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors ml-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="edit-pass-container" class="bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 p-4 md:p-5 rounded-lg relative">
+                        <label id="edit-pass-label" class="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-2">Password</label>
+                        <div class="flex items-center">
+                            <input id="edit-pass" type="password" oninput="checkForChanges()" 
+                                   onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
+                                   onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
+                                   onclick="copyField(this, 'Password')"
+                                   class="bg-transparent border-none outline-none text-slate-900 dark:text-white w-full font-mono text-sm cursor-pointer"
+                                   title="Click to copy, Hover to reveal">
+                            <div class="flex items-center gap-3 ml-2">
+                                <button onclick="toggleVisibility('edit-pass')" class="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                                    <svg id="eye-icon-edit-pass" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path class="eye-open" stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path class="eye-slash hidden" stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-8">
+                    <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-4">Category Assignment</label>
+                    <div id="edit-cat-buttons" class="flex flex-wrap gap-2 md:gap-3"></div>
+                </div>
+
+                <div class="mb-8">
+                    <label class="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 block mb-2">Encrypted Notes</label>
+                    <textarea id="edit-notes" oninput="checkForChanges()" placeholder="Add secure notes, recovery keys, or context..." class="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 p-4 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:border-slate-300 dark:focus:border-slate-500 font-mono transition-all resize-none h-24"></textarea>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-8 border-t border-slate-100 dark:border-slate-800 pt-6">
+                    <div>
+                        <p class="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Created</p>
+                        <p id="created-date" class="text-xs font-mono text-slate-500 mt-1"></p>
+                    </div>
+                    <div>
+                        <p class="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Last Modified</p>
+                        <p id="modified-date" class="text-xs font-mono text-slate-500 mt-1"></p>
+                    </div>
+                </div>
+
+                <div class="flex flex-col md:flex-row items-center gap-4">
+                    <button id="modal-action-btn" onclick="updateEntryFromModal()" class="w-full md:flex-[2] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-3 rounded-md text-xs font-bold uppercase tracking-widest transition-all btn-interact">Close</button>
+                    <button id="modal-hide-btn" onclick="toggleEntryHidden()" class="w-full md:flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 py-3 rounded-md text-xs font-bold uppercase tracking-widest hover:bg-slate-100 dark:hover:bg-slate-700 transition-all btn-interact">Hide</button>
+                    <button onclick="confirmDeleteEntry()" class="w-full md:flex-1 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 py-3 rounded-md text-xs font-bold uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all btn-interact">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirm-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center p-4 modal-bg opacity-0 pointer-events-none transition-all duration-300">
+        <div class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 w-full max-w-sm rounded-2xl p-8 text-center shadow-2xl">
+            <h3 id="confirm-title" class="text-xl font-bold text-slate-900 dark:text-white mb-2 tracking-tight">Are you sure?</h3>
+            <p id="confirm-desc" class="text-sm text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">This action is irreversible.</p>
+            <div id="confirm-pw-container" class="mb-6 hidden">
+                <input id="confirm-pw-input" type="password" placeholder="Verify Password" 
+                       onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
+                       onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
+                       onclick="copyField(this, 'Password')"
+                       class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-slate-300 transition-all font-mono cursor-pointer"
+                       title="Click to copy, Hover to reveal">
+            </div>
+            <div class="flex gap-4">
+                <button onclick="closeConfirmModal()" class="flex-1 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-3 rounded-md text-xs font-bold uppercase tracking-widest btn-interact">Cancel</button>
+                <button id="confirm-delete-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-md text-xs font-bold uppercase tracking-widest btn-interact">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- Auth -->
+    <div id="auth-container" class="absolute inset-0 z-[500] bg-white dark:bg-slate-950 flex flex-col items-center justify-center px-4 transition-all duration-700">
+        <div class="text-center mb-10">
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Password Keychain</h1>
+            <p class="text-slate-500 dark:text-slate-400 text-xs font-semibold tracking-widest mt-2 uppercase">By Kinetic Logic Labs</p>
+        </div>
+        <div id="login-card" class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-8 sm:p-10 md:p-12 rounded-3xl shadow-xl w-[min(90%,520px)] transition-all duration-500">
+            <div class="space-y-4 md:space-y-6">
+                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3.5 md:p-5 rounded-lg text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 focus:ring-1 focus:ring-slate-300 transition-all text-sm md:text-base font-mono truncate">
+                <div class="relative">
+                    <input id="auth-pw" type="password" placeholder="Password" 
+                           onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
+                           onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
+                           onclick="copyField(this, 'Password')"
+                           class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3.5 md:p-5 pr-12 md:pr-14 rounded-lg text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 focus:ring-1 focus:ring-slate-300 transition-all text-sm md:text-base font-mono cursor-pointer"
+                           title="Click to copy, Hover to reveal">
+                    <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors z-10">
+                        <svg id="eye-icon-auth-pw" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 md:w-6 md:h-6"><path class="eye-open" stroke-linecap="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" /><path class="eye-open" stroke-linecap="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path class="eye-slash hidden" stroke-linecap="round" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88" /></svg>
+                    </button>
+                </div>
+            </div>
+            <button id="login-btn" onclick="handleLogin()" class="btn-interact w-full bg-blue-600 text-white font-bold py-3.5 md:py-5 rounded-lg mt-6 md:mt-8 uppercase shadow-lg hover:bg-blue-700 transition-all tracking-widest text-xs md:text-sm">Access Vault</button>
+        </div>
+    </div>
+
+    
+
+    <!-- Main App Layout -->
+    <div id="main-app" class="hidden w-full h-full flex flex-col bg-white dark:bg-slate-950 transition-opacity duration-500">
+        
+        <!-- Top Navigation Bar -->
+        <header id="top-bar" class="h-16 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between px-4 md:px-8 z-[100] shrink-0">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-3 overflow-hidden">
+                    <div class="w-8 h-8 bg-blue-600 dark:bg-blue-500 rounded flex items-center justify-center shrink-0 shadow-sm shadow-blue-500/20">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                    </div>
+                    <span class="font-bold text-lg tracking-tight truncate whitespace-nowrap text-slate-900 dark:text-white">Password Keychain</span>
+                </div>
+            </div>
+
+            <!-- Search Bar -->
+            <div class="max-w-xl w-full mx-4 md:mx-12 relative hidden md:block">
+                <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                    <svg class="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+                <input id="vault-search-input" type="text" oninput="handleSearch(this.value)" placeholder="Search domain, username or categories..." class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-10 pr-4 py-2 rounded-lg text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 transition-all">
+            </div>
+
+                <!-- Profile / Identity -->
+                <div id="profile-popover-container" class="flex items-center gap-4 relative">
+                    <div class="text-right">
+                        <p id="top-user" class="text-sm font-bold text-slate-900 dark:text-white truncate tracking-tight"></p>
+                    </div>
+                    <button onclick="toggleProfileMenu(event)" class="btn-interact focus:outline-none">
+                        <div id="top-profile-icon" class="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-400 shadow-inner transition-colors duration-300">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        </div>
+                    </button>
+                    
+                    <!-- Popover Menu -->
+                    <div id="profile-popover" class="hidden absolute top-12 right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl shadow-xl z-[200] w-56 transition-all scale-95 opacity-0 origin-top-right">
+                        <!-- Profile Color Section -->
+                        <div class="mb-4">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Profile Color</p>
+                            <div class="grid grid-cols-4 gap-2" id="color-palette-grid">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Theme Selection -->
+                        <div class="mb-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3 text-center">Appearance</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="setTheme('light')" class="theme-btn p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors bg-white dark:bg-slate-900" id="theme-light">
+                                    <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.243 16.243l.707.707M7.757 7.757l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
+                                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Light</span>
+                                </button>
+                                <button onclick="setTheme('dark')" class="theme-btn p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors bg-white dark:bg-slate-900" id="theme-dark">
+                                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                                    <span class="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Dark</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Secondary Log Out -->
+                        <div class="pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <button onclick="location.reload()" class="w-full py-2 px-3 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 group">
+                                <svg class="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                                Exit Vault
+                            </button>
+                        </div>
+                    </div>
+                </div>
+        </header>
+
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Sidebar -->
+            <aside id="app-sidebar" onmouseenter="setSidebarState(true)" onmouseleave="setSidebarState(false)" class="w-20 bg-slate-50/50 dark:bg-slate-900 border-r border-slate-100 dark:border-slate-800 flex flex-col justify-between shrink-0 h-full z-10 transition-all duration-300 ease-in-out hover:shadow-xl">
+                <div>
+                    <div class="p-4 space-y-2 mt-4">
+                        <button onclick="switchTab('vault')" id="nav-vault" class="w-full flex items-center h-12 rounded-xl font-bold text-sm transition-all duration-200 nav-btn active hover:bg-white dark:hover:bg-slate-800 group" title="Vault">
+                            <div class="w-12 h-12 shrink-0 flex items-center justify-center">
+                                <svg class="w-5 h-5 opacity-80 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                            </div>
+                            <span class="sidebar-text truncate hidden opacity-0 whitespace-nowrap overflow-hidden transition-all duration-300 ml-4">Vault</span>
+                        </button>
+                        <button onclick="switchTab('settings')" id="nav-settings" class="w-full flex items-center h-12 rounded-xl font-bold text-sm transition-all duration-200 nav-btn hover:bg-slate-50 group" title="Settings">
+                            <div class="w-12 h-12 shrink-0 flex items-center justify-center">
+                                <svg class="w-5 h-5 opacity-80 shrink-0 group-hover:rotate-12 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            </div>
+                            <span class="sidebar-text truncate hidden opacity-0 whitespace-nowrap overflow-hidden transition-all duration-300 ml-4">Settings</span>
+                        </button>
+                        <button onclick="switchTab('admin')" id="nav-admin" class="hidden w-full flex items-center h-12 rounded-xl font-bold text-sm transition-all duration-200 nav-btn hover:bg-slate-50 group" title="Admin Dashboard">
+                            <div class="w-12 h-12 shrink-0 flex items-center justify-center">
+                                <svg class="w-5 h-5 opacity-80 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                            </div>
+                            <span class="sidebar-text truncate hidden opacity-0 whitespace-nowrap overflow-hidden transition-all duration-300 ml-4">Admin Dashboard</span>
+                        </button>
+                    </div>
+
+                </div>
+                
+                <div class="p-4 border-t border-slate-100 dark:border-slate-800 mb-4 sidebar-footer-box flex flex-col items-center">
+                    <button onclick="location.reload()" class="w-full flex items-center h-12 rounded-xl text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 font-bold text-sm transition-all duration-200 group" title="Log Out">
+                        <div class="w-12 h-12 shrink-0 flex items-center justify-center">
+                            <svg class="w-5 h-5 opacity-80 shrink-0 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                        </div>
+                        <span class="sidebar-text hidden opacity-0 whitespace-nowrap overflow-hidden transition-all duration-300 ml-4">Log Out</span>
+                    </button>
+                </div>
+
+            </aside>
+
+        <main class="flex-1 h-full overflow-y-auto bg-white dark:bg-slate-950 relative">
+            <div class="p-6 md:p-10 max-w-7xl mx-auto">
+                <!-- Vault Tab -->
+                <div id="tab-vault" class="tab-content active pb-20">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-8 md:mb-12">
+                        <div>
+                            <h1 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Vault Entries</h1>
+                            <p id="vault-count" class="text-sm text-slate-500 dark:text-slate-400 mt-1">Securely manage credentials and secrets across environments</p>
+                        </div>
+                        <div class="grid grid-cols-2 md:flex gap-3 w-full md:w-auto">
+                            <button onclick="exportVault()" class="btn-interact bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 transition-colors shadow-sm">Export</button>
+                            <button onclick="document.getElementById('import-input').click()" class="btn-interact bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-md text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 transition-colors shadow-sm">Import</button>
+                            <input type="file" id="import-input" class="hidden" accept=".json" onchange="importVault(event)">
+                        </div>
+                    </div>
+
+                    <!-- Add Entry Console -->
+                    <div class="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 p-6 md:p-10 rounded-3xl mb-12">
+                        <div id="add-console-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <input id="dom" placeholder="Domain (Google.com)" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all">
+                <input id="usr" placeholder="Identifier" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all">
+                <div class="relative">
+                    <input id="pwd" placeholder="Password" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 pr-10 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all">
+                    <button onclick="generatePass('pwd')" class="absolute right-3 top-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors" title="Generate Password">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>
+                    </button>
+                </div>
+                <input id="notes" placeholder="Notes (Optional)" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all">
+            </div>
+            
+            <div class="mb-8 pl-1">
+                <div id="add-cat-buttons" class="flex flex-wrap gap-2 md:gap-3"></div>
+            </div>
+
+            <button onclick="saveEntry()" class="btn-interact flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded transition-colors shadow-lg shadow-blue-900/10 dark:shadow-blue-900/40">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4"/></svg>
+                Add New Entry
+            </button>
+        </div> <!-- The start inner stuff down to the actual end -->
+
+                    <div class="mb-6 pl-1">
+                    
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+                <h3 class="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Categories</h3>
+            </div>
+            <div class="flex items-center justify-between flex-wrap gap-3">
+                <div id="vault-filter-buttons" class="flex flex-wrap gap-2 md:gap-3"></div>
+                <div class="relative">
+                    <button onclick="toggleSortPopover()" class="px-3 py-2 rounded text-xs font-bold uppercase tracking-widest border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white transition-all duration-300 btn-interact flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h9.75m4.5-4.5v12m0 0-3.75-3.75M17.25 21 21 17.25" />
+                        </svg>
+                        <span id="active-sort-label">Sort</span>
+                    </button>
+                    <div id="sort-popover" class="hidden absolute top-10 right-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1.5 rounded-xl shadow-xl z-[50] w-40 transition-all scale-95 opacity-0 origin-top-right">
+                        <button onclick="setSort('created')" class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Created</button>
+                        <button onclick="setSort('modified')" class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">Modified</button>
+                        <button onclick="setSort('alphabetical')" class="w-full text-left px-3 py-2 rounded-lg text-xs font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">A-Z</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm mb-12">
+            <table class="w-full text-left" id="vault-table">
+                <thead>
+                    <tr class="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                      <th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest hidden md:table-cell">Category</th>
+                      <th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Domain / Service</th>
+                      <th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest hidden sm:table-cell">Username</th>
+                      <th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Notes</th>
+                      <th class="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest text-right">Delete</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 dark:divide-slate-800" id="vault-list">
+                    <!-- Populated by JS -->
+                </tbody>
+            </table>
+        
+                </div>
+            </div>
+
+                <!-- Settings Tab -->
+                <div id="tab-settings" class="tab-content pb-20 max-w-4xl mx-auto">
+                    <div class="mb-8 md:mb-12">
+                        <h1 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Settings</h1>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Manage your vault preferences and schema</p>
+                    </div>
+                    
+                    <div class="space-y-8">
+                        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-xl shadow-sm">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                <div class="space-y-6 min-w-0">
+                                    <div class="border-b border-slate-100 dark:border-slate-800 pb-2">
+                                        <h3 class="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest">Master Credentials</h3>
+                                    </div>
+                                <div class="space-y-4">
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Username</label>
+                                        <input id="update-user" placeholder="Update Username" class="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-3.5 rounded-xl text-sm text-slate-900 dark:text-white outline-none focus:border-slate-300 dark:focus:border-slate-500 font-mono transition-all">
+                                    </div>
+                                    <div class="space-y-1">
+                                        <label class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest px-1">Password</label>
+                                        <input id="update-pw" type="password" placeholder="Update Password" 
+                                               onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
+                                               onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
+                                               onclick="copyField(this, 'Password')"
+                                               class="w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-3.5 rounded-xl text-sm text-slate-900 dark:text-white outline-none focus:border-slate-300 dark:focus:border-slate-500 font-mono transition-all cursor-pointer"
+                                               title="Click to copy, Hover to reveal">
+                                    </div>
+                                    <button onclick="updateCredentials()" class="btn-interact w-full bg-blue-600 hover:bg-blue-700 text-white py-3.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-colors mt-2">Sync Updates</button>
+                                </div>
+                                </div>
+                                
+                                <div class="border-t md:border-t-0 md:border-l border-slate-100 dark:border-slate-800 pt-8 md:pt-0 md:pl-12 space-y-6 flex flex-col min-w-0">
+                                    <div class="border-b border-slate-100 dark:border-slate-800 pb-2">
+                                        <h3 class="text-slate-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest">Vault Schema (Categories)</h3>
+                                    </div>
+                                    <div id="category-manager-list" class="flex flex-col gap-2 max-h-[300px] overflow-y-auto pr-2"></div>
+                                    <div class="mt-auto pt-6 border-t border-slate-50 dark:border-slate-800">
+                                        <div class="flex gap-2">
+                                            <input id="new-cat-input" placeholder="New Tag..." class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 transition-all font-mono min-w-0">
+                                            <button onclick="addCategory()" class="btn-interact bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors shrink-0">Add</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Danger Zone -->
+                        <div id="settings-danger-zone" class="bg-red-50/30 dark:bg-red-950/10 border border-red-100 dark:border-red-900/30 p-6 md:p-8 rounded-xl shadow-sm hidden">
+                            <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                                <div class="space-y-1">
+                                    <h3 class="text-red-600 dark:text-red-400 text-sm font-bold uppercase tracking-widest">Danger Zone</h3>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Permanently delete your account and all stored vault records. This action cannot be undone.</p>
+                                </div>
+                                <button onclick="deleteSelfAccount()" class="btn-interact bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg text-xs font-bold uppercase tracking-widest transition-all shadow-sm">Delete Account</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Tab -->
+                <div id="tab-admin" class="tab-content pb-20">
+                    <div class="mb-8 md:mb-12">
+                        <h1 class="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white tracking-tight">Admin Dashboard</h1>
+                        <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">System-wide user identity and access management</p>
+                    </div>
+                    <div class="space-y-8 max-w-4xl mx-auto">
+                        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-xl shadow-sm overflow-hidden">
+                            <div class="border-b border-slate-100 dark:border-slate-800 pb-2 mb-6">
+                                <h3 class="text-neutral-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest">Account Registry</h3>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="min-w-0">
+                                    <input id="reg-user" placeholder="Register New Identity" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all">
+                                </div>
+                                <div class="flex gap-2 min-w-0">
+                                    <input id="reg-pw" type="password" placeholder="Set Secure Password" 
+                                           onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
+                                           onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
+                                           onclick="copyField(this, 'Password')"
+                                           class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all min-w-0 cursor-pointer"
+                                           title="Click to copy, Hover to reveal">
+                                    <button onclick="adminCreateAccount()" class="btn-interact shrink-0 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors shadow-sm">Enroll</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="user-management-panel" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 md:p-8 rounded-xl shadow-sm overflow-hidden">
+                            <div class="border-b border-slate-100 dark:border-slate-800 pb-2 mb-8">
+                                <h3 class="text-neutral-500 dark:text-slate-400 text-[10px] font-bold uppercase tracking-widest">Identity Management</h3>
+                            </div>
+                            <div id="admin-user-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 w-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = "https://sphhognczswchindrpua.supabase.co/functions/v1/keychain";
+        let currentUser = "";
+        let userRole = "user";
+        let currentCategories = ["Personal", "Work", "Finance", "Social", "Addresses"];
+        let fullVaultData = [];
+        let activeEntry = null;
+        let initialEntryState = null;
+        let selectedEditCategory = "";
+        let selectedAddCategory = "Personal";
+        let activeFilter = "All";
+        let activeSort = "created";
+
+        
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + tabId).classList.add('active');
+            document.getElementById('nav-' + tabId).classList.add('active');
+            if (tabId === 'vault') loadVault();
+        }
+
+        function setSidebarState(isExpanded) {
+            const sidebar = document.getElementById('app-sidebar');
+            
+            if (isExpanded) {
+                sidebar.classList.remove('w-20');
+                sidebar.classList.add('w-64');
+                setTimeout(() => {
+                    if (sidebar.classList.contains('w-64')) {
+                        sidebar.querySelectorAll('.sidebar-text').forEach(el => {
+                            el.classList.remove('hidden');
+                            setTimeout(() => el.classList.remove('opacity-0'), 10);
+                        });
+                    }
+                }, 100);
+            } else {
+                sidebar.classList.remove('w-64');
+                sidebar.classList.add('w-20');
+                sidebar.querySelectorAll('.sidebar-text').forEach(el => {
+                    el.classList.add('opacity-0');
+                    el.classList.add('hidden');
+                });
+            }
+        }
+
+
+        let searchQuery = "";
+        const profileColors = [
+            { name: "Default", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-600 dark:text-slate-400", border: "border-slate-200 dark:border-slate-700" },
+            { name: "Blue", bg: "bg-blue-100 dark:bg-blue-900/30", text: "text-blue-600 dark:text-blue-400", border: "border-blue-200 dark:border-blue-800" },
+            { name: "Red", bg: "bg-red-100 dark:bg-red-900/30", text: "text-red-600 dark:text-red-400", border: "border-red-200 dark:border-red-800" },
+            { name: "Green", bg: "bg-emerald-100 dark:bg-emerald-900/30", text: "text-emerald-600 dark:text-emerald-400", border: "border-emerald-200 dark:border-emerald-800" },
+            { name: "Amber", bg: "bg-amber-100 dark:bg-amber-900/30", text: "text-amber-600 dark:text-amber-400", border: "border-amber-200 dark:border-amber-800" },
+            { name: "Purple", bg: "bg-purple-100 dark:bg-purple-900/30", text: "text-purple-600 dark:text-purple-400", border: "border-purple-200 dark:border-purple-800" },
+            { name: "Indigo", bg: "bg-indigo-100 dark:bg-indigo-900/30", text: "text-indigo-600 dark:text-indigo-400", border: "border-indigo-200 dark:border-indigo-800" },
+            { name: "Rose", bg: "bg-rose-100 dark:bg-rose-900/30", text: "text-rose-600 dark:text-rose-400", border: "border-rose-200 dark:border-rose-800" }
+        ];
+        let currentProfileColor = profileColors[0].name;
+        let currentTheme = 'light';
+
+        function toggleProfileMenu(e) {
+            e.stopPropagation();
+            const popover = document.getElementById('profile-popover');
+            const isHidden = popover.classList.contains('hidden');
+            
+            if (isHidden) {
+                renderColorPalette();
+                updateThemeUI();
+                popover.classList.remove('hidden');
+                setTimeout(() => {
+                    popover.classList.replace('scale-95', 'scale-100');
+                    popover.classList.replace('opacity-0', 'opacity-100');
+                }, 10);
+                
+                const closeHandler = (event) => {
+                    if (!popover.contains(event.target)) {
+                        popover.classList.replace('scale-100', 'scale-95');
+                        popover.classList.replace('opacity-100', 'opacity-0');
+                        setTimeout(() => popover.classList.add('hidden'), 200);
+                        window.removeEventListener('click', closeHandler);
+                    }
+                };
+                window.addEventListener('click', closeHandler);
+            }
+        }
+
+        function setTheme(theme) {
+            currentTheme = theme;
+            if (theme === 'dark') {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+            updateThemeUI();
+            if (currentUser) {
+                localStorage.setItem(`app_theme_${currentUser}`, theme);
+            }
+        }
+
+        function updateThemeUI() {
+            const lightBtn = document.getElementById('theme-light');
+            const darkBtn = document.getElementById('theme-dark');
+            
+            if (!lightBtn || !darkBtn) return;
+
+            if (currentTheme === 'dark') {
+                darkBtn.className = "theme-btn p-2 rounded-lg border border-indigo-500 flex flex-col items-center gap-1 transition-colors bg-indigo-500/10";
+                lightBtn.className = "theme-btn p-2 rounded-lg border border-slate-200 dark:border-slate-700 flex flex-col items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-white dark:bg-slate-900";
+            } else {
+                lightBtn.className = "theme-btn p-2 rounded-lg border border-amber-500 flex flex-col items-center gap-1 transition-colors bg-amber-50/50 shadow-sm shadow-amber-200";
+                darkBtn.className = "theme-btn p-2 rounded-lg border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors bg-white dark:bg-slate-900";
+            }
+        }
+
+        function renderColorPalette() {
+            const grid = document.getElementById('color-palette-grid');
+            grid.innerHTML = profileColors.map(c => `
+                <div onclick="setProfileColor('${c.name}')" 
+                     class="color-bubble ${c.bg} ${c.name === currentProfileColor ? 'active' : ''}" 
+                     title="${c.name}"></div>
+            `).join('');
+        }
+
+        function setProfileColor(colorName) {
+            currentProfileColor = colorName;
+            const color = profileColors.find(c => c.name === colorName) || profileColors[0];
+            const icon = document.getElementById('top-profile-icon');
+            
+            // Remove old color classes
+            profileColors.forEach(c => {
+                const bgClasses = c.bg.split(' ').filter(Boolean);
+                const textClasses = c.text.split(' ').filter(Boolean);
+                const borderClasses = c.border.split(' ').filter(Boolean);
+                icon.classList.remove(...bgClasses, ...textClasses, ...borderClasses);
+            });
+            
+            // Add new classes
+            const newBgClasses = color.bg.split(' ').filter(Boolean);
+            const newTextClasses = color.text.split(' ').filter(Boolean);
+            const newBorderClasses = color.border.split(' ').filter(Boolean);
+            icon.classList.add(...newBgClasses, ...newTextClasses, ...newBorderClasses);
+            
+            if (currentUser) {
+                localStorage.setItem(`profile_color_${currentUser}`, colorName);
+            }
+            renderColorPalette();
+        }
+
+        function handleSearch(val) {
+            searchQuery = val.toLowerCase().trim();
+            loadVault();
+        }
+
+        function showLoading(show, msg = "Processing Request") { 
+            const overlay = document.getElementById('loading-overlay');
+            const textEl = document.getElementById('loading-text');
+            if(show) { textEl.innerText = msg; overlay.classList.remove('hidden'); }
+            else { overlay.classList.add('hidden'); }
+        }
+        
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            container.innerHTML = '';
+            const toast = document.createElement('div');
+            toast.className = `toast-pop ${type === 'success' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700' : 'bg-white dark:bg-slate-800 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50'} px-6 py-3 rounded-md shadow-lg font-bold uppercase tracking-widest pointer-events-auto mb-2 text-xs text-center`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 500);
+            }, 3000);
+        }
+
+        function toggleVisibility(id) {
+            const el = document.getElementById(id);
+            const iconId = id.startsWith('admin-pw-') ? 'eye-icon-' + id.split('-').pop() : 'eye-icon-' + id;
+            const icon = document.getElementById(iconId) || document.getElementById('eye-icon-auth-pw');
+            const paths = icon ? icon.querySelectorAll('path') : [];
+            
+            if (el.type === 'password') {
+                el.type = 'text';
+                if (paths.length >= 3) {
+                    paths[0].classList.add('hidden'); paths[1].classList.add('hidden');
+                    paths[2].classList.remove('hidden');
+                }
+            } else {
+                el.type = 'password';
+                if (paths.length >= 3) {
+                    paths[0].classList.remove('hidden'); paths[1].classList.remove('hidden');
+                    paths[2].classList.add('hidden');
+                }
+            }
+        }
+
+        function renderSettingsCategories() {
+            const container = document.getElementById('category-manager-list');
+            container.innerHTML = currentCategories.map(c => `
+                <div class="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 pl-4 pr-2 py-2 rounded-lg shadow-sm w-full max-w-xs">
+                    <span class="text-xs font-bold text-slate-700 dark:text-slate-300 tracking-wide">${c}</span>
+                    <button onclick="deleteCategory('${c}')" class="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/40 rounded-md transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+            `).join('');
+            
+            renderAddConsoleCategoryButtons(selectedAddCategory);
+            renderFilterButtons();
+            if(activeEntry) renderEditCategoryButtons(selectedEditCategory);
+        }
+
+        async function addCategory() {
+            const input = document.getElementById('new-cat-input');
+            const val = input.value.trim();
+            if(!val || currentCategories.includes(val)) return;
+            currentCategories.push(val);
+            input.value = "";
+            renderSettingsCategories();
+            await syncCategoriesToServer();
+        }
+
+        async function deleteCategory(c) {
+            currentCategories = currentCategories.filter(item => item !== c);
+            renderSettingsCategories();
+            await syncCategoriesToServer();
+        }
+
+        async function syncCategoriesToServer() {
+            if(!currentUser) return;
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/update-profile`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oldUsername: currentUser, newUsername: currentUser, newCategories: currentCategories }) 
+                });
+                if(res.ok) showToast("Vault Schema Synchronized");
+            } catch (e) {
+                showToast("Schema sync failed", "error");
+            } finally { showLoading(false); }
+        }
+
+        function renderEditCategoryButtons(active) {
+            const container = document.getElementById('edit-cat-buttons');
+            selectedEditCategory = active;
+            container.innerHTML = currentCategories.map(c => `
+                <button onclick="setEditCategory('${c}')" class="px-4 py-2.5 rounded text-xs font-bold uppercase tracking-widest border transition-all duration-300 btn-interact ${c === active ? 'border-blue-600 bg-blue-600 text-white shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'}">
+                    ${c}
+                </button>
+            `).join('');
+            updateEditModalLabels(active);
+        }
+
+        function setEditCategory(c) {
+            selectedEditCategory = c;
+            renderEditCategoryButtons(c);
+            checkForChanges();
+        }
+
+        function renderAddConsoleCategoryButtons(active) {
+            const container = document.getElementById('add-cat-buttons');
+            selectedAddCategory = active;
+            container.innerHTML = currentCategories.map(c => `
+                <button onclick="setAddCategory('${c}')" class="px-4 py-2.5 rounded text-xs font-bold uppercase tracking-widest border transition-all duration-300 btn-interact ${c === active ? 'border-blue-600 bg-blue-600 text-white shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'}">
+                    ${c}
+                </button>
+            `).join('');
+            updateAddConsoleLabels(active);
+        }
+
+        function setAddCategory(c) {
+            selectedAddCategory = c;
+            renderAddConsoleCategoryButtons(c);
+        }
+
+        function renderFilterButtons() {
+            const container = document.getElementById('vault-filter-buttons');
+            const options = ["All", ...currentCategories, "Hidden"];
+            container.innerHTML = options.map(c => `
+                <button onclick="setFilter('${c}')" class="px-3 py-2 rounded text-xs font-bold uppercase tracking-widest border transition-all duration-300 btn-interact ${activeFilter === c ? 'border-blue-600 bg-blue-600 text-white shadow-md' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'}">
+                    ${c}
+                </button>
+            `).join('');
+        }
+
+        function setFilter(c) {
+            activeFilter = c;
+            renderFilterButtons();
+            renderVaultList();
+        }
+
+        function toggleSortPopover() {
+            const popover = document.getElementById('sort-popover');
+            const isHidden = popover.classList.contains('hidden');
+            if (isHidden) {
+                popover.classList.remove('hidden');
+                setTimeout(() => { popover.classList.add('opacity-100', 'scale-100'); popover.classList.remove('scale-95', 'opacity-0'); }, 10);
+            } else {
+                popover.classList.add('scale-95', 'opacity-0');
+                popover.classList.remove('scale-100', 'opacity-100');
+                setTimeout(() => popover.classList.add('hidden'), 200);
+            }
+        }
+
+        function setSort(s) {
+            activeSort = s;
+            const label = document.getElementById('active-sort-label');
+            if (s === 'created') label.innerText = "Created";
+            else if (s === 'modified') label.innerText = "Modified";
+            else if (s === 'alphabetical') label.innerText = "A-Z";
+            
+            toggleSortPopover();
+            renderVaultList();
+        }
+
+        function updateAddConsoleLabels(category) {
+            const domInput = document.getElementById('dom');
+            const usrInput = document.getElementById('usr');
+            const pwdInput = document.getElementById('pwd');
+            const notesInput = document.getElementById('notes');
+            const grid = document.getElementById('add-console-grid');
+            if (category === "Addresses") {
+                domInput.placeholder = "Name"; pwdInput.placeholder = "Full Address"; usrInput.classList.add('hidden'); notesInput.placeholder = "Extra Details"; grid.classList.replace('lg:grid-cols-4', 'md:grid-cols-3');
+            } else {
+                domInput.placeholder = "Domain (Google.com)"; usrInput.placeholder = "Identifier"; pwdInput.placeholder = "Password"; usrInput.classList.remove('hidden'); notesInput.placeholder = "Notes (Optional)"; grid.classList.replace('md:grid-cols-3', 'lg:grid-cols-4');
+            }
+        }
+
+        function updateEditModalLabels(category) {
+            const domLabel = document.getElementById('edit-domain-label');
+            const usrLabel = document.getElementById('edit-user-label');
+            const passLabel = document.getElementById('edit-pass-label');
+            const usrContainer = document.getElementById('edit-user-container');
+            if (category === "Addresses") {
+                domLabel.innerText = "Location Name"; passLabel.innerText = "Address Details"; usrContainer.classList.add('hidden');
+            } else {
+                domLabel.innerText = "Record Details"; usrLabel.innerText = "Username"; passLabel.innerText = "Password"; usrContainer.classList.remove('hidden');
+            }
+        }
+
+        function checkForChanges() {
+            if(!initialEntryState) return false;
+            const current = {
+                domain: document.getElementById('edit-domain').value.trim(),
+                username: document.getElementById('edit-user').value.trim(),
+                password: document.getElementById('edit-pass').value,
+                category: selectedEditCategory,
+                notes: document.getElementById('edit-notes').value.trim()
+            };
+            const isChanged = current.domain !== initialEntryState.domain || current.username !== initialEntryState.username || current.password !== initialEntryState.password || current.category !== initialEntryState.category || current.notes !== initialEntryState.notes;
+            const btn = document.getElementById('modal-action-btn');
+            btn.innerText = isChanged ? "Update Entry" : "Close";
+            btn.classList.toggle('bg-blue-600', isChanged); btn.classList.toggle('text-white', isChanged); btn.classList.toggle('hover:bg-blue-700', isChanged);
+            btn.classList.toggle('bg-slate-100', !isChanged); btn.classList.toggle('dark:bg-slate-800', !isChanged); btn.classList.toggle('text-slate-700', !isChanged); btn.classList.toggle('dark:text-slate-300', !isChanged); btn.classList.toggle('hover:bg-slate-200', !isChanged); btn.classList.toggle('dark:hover:bg-slate-700', !isChanged);
+            return isChanged;
+        }
+
+        function openDetailModal(idx) {
+            const entry = fullVaultData.find((_, i) => i === idx);
+            if (!entry) return;
+            activeEntry = entry;
+            initialEntryState = { domain: entry.domain, username: entry.username, password: entry.password, category: entry.category, notes: entry.notes || "", is_hidden: !!entry.is_hidden };
+            document.getElementById('edit-domain').value = entry.domain;
+            document.getElementById('edit-user').value = entry.username;
+            document.getElementById('edit-pass').value = entry.password;
+            document.getElementById('edit-notes').value = entry.notes || "";
+            document.getElementById('edit-pass').type = 'password'; 
+            document.getElementById('created-date').innerText = new Date(entry.created_at).toLocaleString();
+            document.getElementById('modified-date').innerText = entry.updated_at ? new Date(entry.updated_at).toLocaleString() : 'Never';
+            document.getElementById('modal-hide-btn').innerText = entry.is_hidden ? "Unhide" : "Hide";
+            
+            renderEditCategoryButtons(entry.category);
+            checkForChanges();
+            const modal = document.getElementById('detail-modal');
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.add('opacity-100'); modal.classList.remove('pointer-events-none'); modal.children[0].classList.remove('translate-y-4'); }, 50);
+        }
+
+        async function toggleEntryHidden() {
+            if (!activeEntry) return;
+            activeEntry.is_hidden = !activeEntry.is_hidden;
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/save`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentUser, entry: activeEntry, oldDomain: activeEntry.domain, createdAt: activeEntry.created_at }) 
+                });
+                if(res.ok) { 
+                    showToast(activeEntry.is_hidden ? "Record Hidden" : "Record Unhidden"); 
+                    closeDetailModal(); 
+                    loadVault(); 
+                }
+            } catch (err) {}
+            finally { showLoading(false); }
+        }
+
+        async function updateEntryFromModal() {
+            if (!checkForChanges()) { closeDetailModal(); return; }
+            if (!currentUser) return showToast("Session Lost", "error");
+            const entry = {
+                domain: document.getElementById('edit-domain').value.trim(),
+                username: selectedEditCategory === "Addresses" ? "-" : (document.getElementById('edit-user').value.trim() || "-"),
+                password: document.getElementById('edit-pass').value,
+                category: selectedEditCategory,
+                notes: document.getElementById('edit-notes').value.trim(),
+                is_hidden: activeEntry.is_hidden
+            };
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/save`, { 
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ currentUser, entry, oldDomain: initialEntryState.domain, createdAt: activeEntry.created_at }) 
+                });
+                if(res.ok) { 
+                    showToast("Vault record updated"); 
+                    closeDetailModal(); 
+                    loadVault(); 
+                } else {
+                    let msg = "Update Failed";
+                    let details = "";
+                    try { 
+                        const err = await res.json(); 
+                        msg = err.error || msg; 
+                        details = err.details || "";
+                    } catch(e) {}
+                    showToast(details ? `${msg}: ${details}` : msg, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Connection failure: " + err.message, "error");
+            } finally { showLoading(false); }
+        }
+
+        function closeDetailModal() {
+            const modal = document.getElementById('detail-modal');
+            modal.classList.remove('opacity-100'); modal.classList.add('pointer-events-none'); modal.children[0].classList.add('translate-y-4');
+            setTimeout(() => modal.classList.add('hidden'), 300);
+            activeEntry = null; initialEntryState = null;
+        }
+
+        function copyField(el, label) { navigator.clipboard.writeText(el.value || el.innerText); showToast(`${label} Copied`); }
+
+        function confirmDeleteEntry() {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').innerText = "Delete Record?";
+            document.getElementById('confirm-desc').innerText = "This record will be permanently removed from your vault.";
+            document.getElementById('confirm-pw-container').classList.add('hidden');
+            const btn = document.getElementById('confirm-delete-btn');
+            btn.onclick = async () => {
+                if (!activeEntry || !currentUser) return;
+                showLoading(true, "Deleting Record...");
+                try {
+                    const res = await fetch(`${API_URL}/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ currentUser, domain: activeEntry.domain, createdAt: activeEntry.created_at })
+                    });
+                    if (res.ok) {
+                        showToast("Record Erased");
+                        closeDetailModal();
+                        closeConfirmModal();
+                        loadVault();
+                    } else {
+                        let msg = "Deletion Failed";
+                        try { const err = await res.json(); msg = err.error || msg; } catch(e) {}
+                        showToast(msg, "error");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast("Connection failure", "error");
+                } finally { showLoading(false); }
+            };
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.add('opacity-100'); modal.classList.remove('pointer-events-none'); }, 50);
+        }
+
+        function closeConfirmModal() { 
+            const modal = document.getElementById('confirm-modal'); 
+            modal.classList.remove('opacity-100'); 
+            modal.classList.add('pointer-events-none'); 
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('confirm-pw-input').value = "";
+            }, 300); 
+        }
+
+        function generatePass(targetId) {
+            const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
+            const pass = Array.from(crypto.getRandomValues(new Uint32Array(16))).map(n => chars[n % chars.length]).join('');
+            document.getElementById(targetId).value = pass;
+        }
+
+        async function loadAdminUserList() {
+            try {
+                const res = await fetch(`${API_URL}/list-all-users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser }) });
+                const data = await res.json();
+                if (!Array.isArray(data)) {
+                    console.error("Failed to load users:", data);
+                    showToast(data.error || "Access Denied", "error");
+                    return;
+                }
+                document.getElementById('admin-user-list').innerHTML = data.map((u, idx) => `
+                    <div class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 rounded-lg space-y-4 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-900 dark:text-white font-bold text-lg tracking-tight">${u.username}</span>
+                            <span class="text-[9px] font-bold uppercase tracking-[0.2em] px-2 py-1 rounded border ${u.role === 'admin' ? 'text-red-600 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'}">${u.role}</span>
+                        </div>
+                        <div class="space-y-1">
+                            <p class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Master Key</p>
+                            <div class="relative flex items-center">
+                                <input id="admin-pw-${idx}" type="password" value="${u.password}" readonly 
+                                       onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
+                                       onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
+                                       onclick="copyField(this, 'Master Key')"
+                                       class="bg-transparent text-xs font-mono text-slate-500 dark:text-slate-400 w-full outline-none pr-8 cursor-pointer"
+                                       title="Click to copy, Hover to reveal">
+                                <button onclick="toggleVisibility('admin-pw-${idx}')" class="absolute right-0 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+                                    <svg id="eye-icon-admin-pw-${idx}" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path class="eye-open" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/><path class="eye-open" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/><path class="eye-slash hidden" d="M3.98 8.223A10.477 10.477 0 0 0 1.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0 1 12 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 0 1-4.293 5.774M6.228 6.228 3 3m3.228 3.228 3.65 3.65m7.822 7.822L21 21m-2.228-2.228-3.65-3.65m0 0a3 3 0 1 0-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center mt-4">
+                            <span class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">${u.entryCount} Entries</span>
+                            ${u.username !== currentUser ? `<button onclick="adminDeleteUser('${u.username}')" class="btn-interact text-[9px] font-bold uppercase tracking-widest bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-md border border-red-100 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">Terminate</button>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {}
+        }
+
+        async function adminDeleteUser(target) {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').innerText = "Terminate Account?";
+            document.getElementById('confirm-desc').innerText = `Are you sure you want to permanently delete user: ${target}? All their records will follow.`;
+            document.getElementById('confirm-pw-container').classList.add('hidden');
+            const btn = document.getElementById('confirm-delete-btn');
+            btn.onclick = async () => {
+                closeConfirmModal();
+                showLoading(true, "Terminating Identity...");
+                try { 
+                    const res = await fetch(`${API_URL}/admin-delete-user`, { 
+                        method: 'POST', 
+                        headers: { 'Content-Type': 'application/json' }, 
+                        body: JSON.stringify({ adminUser: currentUser, targetUser: target }) 
+                    }); 
+                    if (res.ok) {
+                        await loadAdminUserList(); 
+                        showToast("Account Terminated"); 
+                    } else {
+                        let msg = "Terminating Failed";
+                        let details = "";
+                        try { 
+                            const err = await res.json(); 
+                            msg = err.error || msg; 
+                            details = err.details || "";
+                        } catch(e) {}
+                        showToast(details ? `${msg}: ${details}` : msg, "error");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast("Connection failure: " + err.message, "error");
+                } finally { showLoading(false); }
+            };
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.add('opacity-100'); modal.classList.remove('pointer-events-none'); }, 50);
+        }
+
+        async function adminCreateAccount() {
+            const u = document.getElementById('reg-user').value.trim(); const p = document.getElementById('reg-pw').value;
+            if(!u || !p) return;
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/create-account`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ adminUser: currentUser, newUsername: u, newPassword: p }) });
+                if(res.ok) { 
+                    showToast("User Identity Registered"); 
+                    document.getElementById('reg-user').value = ""; 
+                    document.getElementById('reg-pw').value = ""; 
+                    loadAdminUserList(); 
+                } else {
+                    let msg = "Creation Failed";
+                    try { const err = await res.json(); msg = err.error || msg; } catch(e) {}
+                    showToast(msg, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Connection failure", "error");
+            } finally { showLoading(false); }
+        }
+
+        async function handleLogin() {
+            const u = document.getElementById('auth-user').value.trim(); const p = document.getElementById('auth-pw').value;
+            if(!u || !p) return;
+            showLoading(true, "Authenticating...");
+            try {
+                const res = await fetch(`${API_URL}/auth`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+                if (res.ok) {
+                    const data = await res.json(); currentUser = u; userRole = data.role || "user"; currentCategories = data.categories || currentCategories;
+                    renderSettingsCategories();
+                    document.getElementById('active-sort-label').innerText = activeSort === 'created' ? 'Created' : (activeSort === 'modified' ? 'Modified' : 'A-Z');
+                    if(userRole === 'admin') { 
+                        document.getElementById('nav-admin').classList.remove('hidden'); 
+                        document.getElementById('nav-admin').style.display='flex'; 
+                        loadAdminUserList(); 
+                        document.getElementById('settings-danger-zone').classList.add('hidden');
+                    } else {
+                        document.getElementById('nav-admin').classList.add('hidden');
+                        document.getElementById('settings-danger-zone').classList.remove('hidden');
+                    }
+                    document.getElementById('auth-container').classList.add('hidden');
+                    document.getElementById('main-app').classList.remove('hidden');
+                    document.getElementById('top-user').innerText = currentUser;
+                    
+                    // Load saved color
+                    const savedColor = localStorage.getItem(`profile_color_${currentUser}`);
+                    if (savedColor) setProfileColor(savedColor);
+                    else setProfileColor('Default');
+
+                    // Load saved theme
+                    const savedTheme = localStorage.getItem(`app_theme_${currentUser}`);
+                    if (savedTheme) setTheme(savedTheme);
+                    else setTheme('light');
+                    
+                    loadVault();
+                } else { 
+                    document.getElementById('login-card').classList.add('shake'); 
+                    let msg = "Access Denied";
+                    try { const err = await res.json(); msg = err.error || msg; } catch(e) {}
+                    showToast(msg, "error"); 
+                    setTimeout(() => document.getElementById('login-card').classList.remove('shake'), 500); 
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Connection failure", "error");
+            } finally { showLoading(false); }
+        }
+
+        async function deleteSelfAccount() {
+            const modal = document.getElementById('confirm-modal');
+            document.getElementById('confirm-title').innerText = "Self-Destruct Account?";
+            document.getElementById('confirm-desc').innerText = "DANGER: This will delete your entire account and all records permanently. Enter your password to proceed.";
+            const pwContainer = document.getElementById('confirm-pw-container');
+            pwContainer.classList.remove('hidden');
+            const pwInput = document.getElementById('confirm-pw-input');
+            const btn = document.getElementById('confirm-delete-btn');
+            btn.onclick = async () => {
+                const pass = pwInput.value;
+                if (!pass) return showToast("Password required", "error");
+                closeConfirmModal();
+                showLoading(true, "Terminating Account...");
+                try {
+                    const res = await fetch(`${API_URL}/delete-self-account`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username: currentUser, password: pass })
+                    });
+                    
+                    if (res.ok) {
+                        showToast("Account Terminated Permanently");
+                        setTimeout(() => window.location.reload(), 2000);
+                    } else {
+                        let msg = "Deletion Failed";
+                        let details = "";
+                        try { 
+                            const err = await res.json(); 
+                            msg = err.error || msg; 
+                            details = err.details || "";
+                        } catch(e) {}
+                        showToast(details ? `${msg}: ${details}` : msg, "error");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast("Connection failure", "error");
+                } finally { showLoading(false); }
+            };
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.add('opacity-100'); modal.classList.remove('pointer-events-none'); }, 50);
+        }
+
+        async function updateCredentials() {
+            const newU = document.getElementById('update-user').value.trim(); const newP = document.getElementById('update-pw').value;
+            if(!newU || !newP) return;
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_URL}/update-profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ oldUsername: currentUser, newUsername: newU, newPassword: newP }) });
+                if(res.ok) { 
+                    showToast("Identity updated: Re-authenticating..."); 
+                    setTimeout(() => location.reload(), 2000); 
+                } else {
+                    let msg = "Profile Update Failed";
+                    try { const err = await res.json(); msg = err.error || msg; } catch(e) {}
+                    showToast(msg, "error");
+                }
+            } catch (err) {
+                console.error(err);
+                showToast("Connection failure", "error");
+            } finally { showLoading(false); }
+        }
+
+        async function saveEntry() {
+            if (!currentUser) return;
+            const dom = document.getElementById('dom'); const usr = document.getElementById('usr'); const pwd = document.getElementById('pwd'); const nts = document.getElementById('notes');
+            if(!dom.value.trim() || !pwd.value) return showToast("Missing Fields", "error");
+            showLoading(true);
+            const entry = { 
+                domain: dom.value.trim(), 
+                username: selectedAddCategory === "Addresses" ? "-" : (usr.value.trim() || "-"), 
+                password: pwd.value, 
+                category: selectedAddCategory, 
+                notes: nts.value.trim(),
+                is_hidden: false
+            };
+            try {
+                const res = await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) });
+                if(res.ok) { 
+                    showToast("Committed to Vault"); 
+                    dom.value = ""; 
+                    usr.value = ""; 
+                    pwd.value = ""; 
+                    if (nts) nts.value = ""; 
+                    loadVault(); 
+                } else { 
+                    let msg = "Save Failed";
+                    let details = "";
+                    try { 
+                        const err = await res.json(); 
+                        msg = err.error || msg; 
+                        details = err.details || "";
+                    } catch(e) {}
+                    console.error("Server Error:", msg, details); 
+                    showToast(details ? `${msg}: ${details}` : msg, "error"); 
+                }
+            } catch (err) {
+                console.error("Fetch Error:", err);
+                showToast("Connection failure: " + err.message, "error");
+            } finally { showLoading(false); }
+        }
+
+        async function loadVault() {
+            if (!currentUser) return;
+            try {
+                const res = await fetch(`${API_URL}/list`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser }) });
+                if (res.ok) { fullVaultData = await res.json(); renderVaultList(); }
+            } catch (err) {}
+        }
+
+        function getCategoryColorClass(cat) {
+            return "border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300";
+        }
+
+        function renderVaultList() {
+            let filteredData = fullVaultData.filter(item => {
+                const matchesSearch = !searchQuery || 
+                    item.domain.toLowerCase().includes(searchQuery) || 
+                    item.username.toLowerCase().includes(searchQuery) || 
+                    item.category.toLowerCase().includes(searchQuery) ||
+                    (item.notes && item.notes.toLowerCase().includes(searchQuery));
+                
+                if (!matchesSearch) return false;
+
+                if (activeFilter === "All") return !item.is_hidden;
+                if (activeFilter === "Hidden") return item.is_hidden;
+                return item.category === activeFilter && !item.is_hidden;
+            });
+
+            // Apply Sorting
+            filteredData.sort((a, b) => {
+                if (activeSort === "alphabetical") {
+                    const isNumA = /^[0-9]/.test(a.domain);
+                    const isNumB = /^[0-9]/.test(b.domain);
+                    if (isNumA && !isNumB) return 1;
+                    if (!isNumA && isNumB) return -1;
+                    return a.domain.localeCompare(b.domain);
+                }
+                
+                if (activeSort === "created") {
+                    return new Date(b.created_at) - new Date(a.created_at);
+                }
+                
+                if (activeSort === "modified") {
+                    const uA = a.updated_at ? new Date(a.updated_at) : new Date(a.created_at);
+                    const uB = b.updated_at ? new Date(b.updated_at) : new Date(b.created_at);
+                    return uB - uA;
+                }
+                return 0;
+            });
+            
+            document.getElementById('vault-count').innerText = searchQuery ? `Found ${filteredData.length} records matching "${searchQuery}"` : 'Showing ' + filteredData.length + ' stored entries';
+            document.getElementById('vault-list').innerHTML = filteredData.map((item) => {
+                const originalIndex = fullVaultData.indexOf(item);
+                const colorClass = getCategoryColorClass(item.category);
+                
+                return `
+                    <tr class="hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors group cursor-pointer border-b border-slate-50 dark:border-slate-800/50" onclick="openDetailModal(${originalIndex})">
+                      <td class="px-6 py-5 hidden md:table-cell align-middle">
+                        <span class="inline-block px-3 py-1.5 ${colorClass} rounded-lg text-[10px] font-bold uppercase tracking-wider">${item.category}</span>
+                      </td>
+                      <td class="px-6 py-4 align-middle">
+                        <div class="flex items-center">
+                            <div class="font-bold text-slate-900 dark:text-white text-sm">${item.domain}</div>
+                            ${item.is_hidden ? '<span class="inline-block ml-2 text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase">Hidden</span>' : ''}
+                        </div>
+                        <div class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Updated: ${item.updated_at ? new Date(item.updated_at).toLocaleDateString() : 'New'}</div>
+                      </td>
+                      <td class="px-6 py-4 text-sm font-mono text-slate-600 dark:text-slate-400 hidden sm:table-cell align-middle">${item.category === 'Addresses' ? '<span class="italic text-slate-400 text-xs text-slate-500">Address Record</span>' : item.username}</td>
+                      <td class="px-6 py-4 align-middle">
+                        <div class="text-xs text-slate-400 dark:text-slate-500 truncate max-w-[150px] font-mono">${item.notes || '---'}</div>
+                      </td>
+                      <td class="px-6 py-4 text-right align-middle">
+                        <button onclick="event.stopPropagation(); activeEntry = fullVaultData[${originalIndex}]; confirmDeleteEntry();" class="text-red-400 hover:text-red-600 transition-colors p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                            </svg>
+                        </button>
+                      </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            if(filteredData.length === 0) {
+               document.getElementById('vault-list').innerHTML = '<tr><td colspan="5" class="px-6 py-8 text-center text-slate-500 dark:text-slate-400 font-medium text-sm">No entries found matching criteria.</td></tr>';
+            }
+        }
+
+        function exportVault() {
+            if (fullVaultData.length === 0) return;
+            const blob = new Blob([JSON.stringify(fullVaultData, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `vault-${currentUser}.json`; a.click();
+        }
+
+        async function importVault(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const data = JSON.parse(e.target.result); showLoading(true);
+                for (const entry of data) { await fetch(`${API_URL}/save`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ currentUser, entry }) }); }
+                showToast(`Imported records`); loadVault(); showLoading(false);
+            };
+            reader.readAsText(file);
+        }
+
+        function toggleSettings() { document.getElementById('settings-panel').classList.toggle('show'); }
+    </script>
+</body>
+</html>
