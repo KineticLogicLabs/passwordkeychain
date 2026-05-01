@@ -140,6 +140,7 @@
                        onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
                        onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
                        onclick="copyField(this, 'Password')"
+                       onkeydown="if(event.key==='Enter') document.getElementById('confirm-delete-btn').click()"
                        class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:ring-1 focus:ring-slate-300 transition-all font-mono cursor-pointer"
                        title="Click to copy, Hover to reveal">
             </div>
@@ -159,12 +160,13 @@
         </div>
         <div id="login-card" class="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-8 sm:p-10 md:p-12 rounded-3xl shadow-xl w-[min(90%,520px)] transition-all duration-500">
             <div class="space-y-4 md:space-y-6">
-                <input id="auth-user" type="text" placeholder="Username" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3.5 md:p-5 rounded-lg text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 focus:ring-1 focus:ring-slate-300 transition-all text-sm md:text-base font-mono truncate">
+                <input id="auth-user" type="text" placeholder="Username" onkeydown="if(event.key==='Enter') handleLogin()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3.5 md:p-5 rounded-lg text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 focus:ring-1 focus:ring-slate-300 transition-all text-sm md:text-base font-mono truncate">
                 <div class="relative">
                     <input id="auth-pw" type="password" placeholder="Password" 
                            onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
                            onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
                            onclick="copyField(this, 'Password')"
+                           onkeydown="if(event.key==='Enter') handleLogin()"
                            class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3.5 md:p-5 pr-12 md:pr-14 rounded-lg text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 focus:ring-1 focus:ring-slate-300 transition-all text-sm md:text-base font-mono cursor-pointer"
                            title="Click to copy, Hover to reveal">
                     <button onclick="toggleVisibility('auth-pw')" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors z-10">
@@ -440,13 +442,14 @@
                             </div>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div class="min-w-0">
-                                    <input id="reg-user" placeholder="Register New Identity" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all">
+                                    <input id="reg-user" placeholder="Register New Identity" onkeydown="if(event.key==='Enter') adminCreateAccount()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all">
                                 </div>
                                 <div class="flex gap-2 min-w-0">
                                     <input id="reg-pw" type="password" placeholder="Set Secure Password" 
                                            onmouseenter="if(this.type==='password') toggleVisibility(this.id)" 
                                            onmouseleave="if(this.type==='text') toggleVisibility(this.id)"
                                            onclick="copyField(this, 'Password')"
+                                           onkeydown="if(event.key==='Enter') adminCreateAccount()"
                                            class="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-3 rounded-md text-sm text-slate-900 dark:text-white outline-none focus:border-slate-400 dark:focus:border-slate-600 font-mono transition-all min-w-0 cursor-pointer"
                                            title="Click to copy, Hover to reveal">
                                     <button onclick="adminCreateAccount()" class="btn-interact shrink-0 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-[10px] font-bold uppercase tracking-widest transition-colors shadow-sm">Enroll</button>
